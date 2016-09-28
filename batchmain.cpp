@@ -14,10 +14,10 @@ int main()
 	//this is the latest one
 	//EM_Class test(100,2.5,1,2.5,28,7);
 	srand (time(NULL));
-	int samplesize =100;
-	int number_of_terms=300;
+	size_t samplesize =100;
+	size_t number_of_terms=300;
 	vector<EM_Class> testvector(samplesize);
-	int num_iterations =5000;
+	size_t num_iterations =250;
 	string Dataset_Loc ="R_real_sub_diff1.txt";
 	EM_Class param_getter;
 	param_getter.load_R(Dataset_Loc);
@@ -44,7 +44,7 @@ int main()
 		lambda_start =rand01()/5.0;
 	}
 
-	for(int i =0;i<samplesize;++i)
+	for(size_t i =0;i<samplesize;++i)
 	{
 /*		double lambda= rand01(); // INITIALISING INITIAL POSITIONS
 		double mu = rand01()/1000;
