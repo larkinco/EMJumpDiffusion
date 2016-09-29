@@ -27,8 +27,8 @@ class EM_Class{
         double tau_estim(double average,double bipower_sigma_s,double &lambda);
         //        static void set_output(std::string filedest);
         //      static void close_output();
-        //        chrono::high_resolution_clock::time_point start_timing();
-        //      void end_timing(chrono::high_resolution_clock::time_point t1);
+        chrono::high_resolution_clock::time_point start_timing();
+        void end_timing(chrono::high_resolution_clock::time_point t1);
         //    double thread_start_timing();
         //  void thread_end_timing(double t1);
         void load_R(std::string fileloc);

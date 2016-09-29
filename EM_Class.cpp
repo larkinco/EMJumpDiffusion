@@ -124,7 +124,6 @@ double EM_Class::incomp_log_likelihood_threaded(){
     return incomplete_log_likelihood;
 }
 
-
 double EM_Class::generate_lambda_an_bn(double &a_n,double &b_n,double R_n)
 {
     double beta_s = (initial.tau_s)/(initial.sigma_s);
@@ -222,11 +221,12 @@ void EM_Class::Expectation_Maximization(size_t nt){
         initial.sigma_s = (sigma_sum/double(T)) - initial.mu*initial.mu;
         initial.tau_s = (tau_term/lambda_sum) -initial.nu*initial.nu;
    		double likelihood = incomp_log_likelihood();
-        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << beta_s<<" "<<likelihood << endl;	
+//        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << beta_s<<" "<<likelihood << endl;	
         //		double likelihood = incomp_log_likelihood1();
         //		double likelihood2 = incomp_log_likelihood2();
 
     }
+        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << endl;	
 
 }
 EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
@@ -252,17 +252,17 @@ void EM_Class::close_output()
     outputstream.close();
 }
 */
-/*
+
    chrono::high_resolution_clock::time_point EM_Class::start_timing(){
-   return high_resolution_clock::now();
+   return chrono::high_resolution_clock::now();
    }
 
    void EM_Class::end_timing(chrono::high_resolution_clock::time_point t1){
-   high_resolution_clock::time_point t2 = high_resolution_clock::now();
-   auto duration = duration_cast<microseconds>( t2 - t1 ).count();
-   cout << "The time to convergence was " << duration << endl;
+       chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+       auto duration = chrono::duration_cast<chrono::microseconds>( t2 - t1 ).count();
+       cout << "The time to convergence was " << duration << endl;
    }
-
+/*
    double EM_Class::thread_start_timing()
    {
    return omp_get_wtime()   

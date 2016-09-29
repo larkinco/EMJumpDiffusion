@@ -5,6 +5,8 @@
 #include<iostream>
 #include<time.h>
 //#include<omp.h>
+#include<chrono>
+
 using namespace std;
 
 inline double rand01();
@@ -14,7 +16,7 @@ int main()
 	//this is the latest one
 	//EM_Class test(100,2.5,1,2.5,28,7);
 	srand (time(NULL));
-	size_t samplesize =100;
+	size_t samplesize =10;
 	size_t number_of_terms=300;
 	vector<EM_Class> testvector(samplesize);
 	size_t num_iterations =250;
@@ -44,6 +46,8 @@ int main()
 		lambda_start =rand01()/5.0;
 	}
 
+    chrono::high_resolution_clock::time_point t1 = chrono::high_resolution_clock::now();
+
 	for(size_t i =0;i<samplesize;++i)
 	{
 /*		double lambda= rand01(); // INITIALISING INITIAL POSITIONS
@@ -62,10 +66,14 @@ int main()
 		testvector.at(i).load_R(Dataset_Loc);
 	//	testvector.at(i).load_R("R_real_sub_diff3.txt");
 		testvector.at(i).Expectation_Maximization(num_iterations);
+    //	cout << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" "<< endl;
 		output1 << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" ";
 		testvector.at(i).print_out_stream(output1);
 	}
 
+    chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::microseconds>( t2 - t1 ).count()/pow(10,6);
+    cout << "The time to convergence was " << duration << endl;
 	
 	output1.close();
 	return 0;
