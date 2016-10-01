@@ -17,7 +17,7 @@ int main()
 	//EM_Class test(100,2.5,1,2.5,28,7);
 	srand (time(NULL));
 	size_t samplesize =10;
-	size_t number_of_terms=300;
+	size_t number_of_terms=100;
 	vector<EM_Class> testvector(samplesize);
 	size_t num_iterations =250;
 	string Dataset_Loc ="R_real_sub_diff1.txt";

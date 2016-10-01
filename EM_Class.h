@@ -36,6 +36,7 @@ class EM_Class{
         double gaussian_dist(double R_n,int k);
         //void create_prob_vector(std::vector <double> &prob_vector1,double R_n);
         double generate_lambda_an_bn(double &a_n,double &b_n,double R_n);
+        double generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n);
         //double normal_pdf(double R_n,int k);
         inline double normal_pdf(double R_n,int k);
         double incomp_log_likelihood();

@@ -159,6 +159,40 @@ double EM_Class::generate_lambda_an_bn(double &a_n,double &b_n,double R_n)
 }
 
 
+double EM_Class::generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n)
+{
+  double beta_s = (initial.tau_s)/(initial.sigma_s);
+  double product =1;
+//  double temp = normal_pdf_fewer(R_n-mu,sigma_s);
+  double temp = normal_pdf(R_n,0);
+
+  double sum_l_nom = 0;
+  double sum_a_nom = temp;
+  double sum_c_nom = temp;
+  double sum_denom = temp;
+  double prev_sum_l_nom=1;
+
+  size_t k =1;
+  while(prev_sum_l_nom!=sum_l_nom && k<m)
+  {
+      prev_sum_l_nom = sum_l_nom;
+      product *= initial.lambda/k;
+     // temp =normal_pdf_fewer(R_n-mu - k*nu,sigma_s + k*tau_s)*product;
+      //temp =normal_pdf(R_n,k,sigma_s,tau_s,mu,nu)*product;
+      temp =gsl_ran_gaussian_pdf (R_n-initial.mu - k*initial.nu,sqrt(initial.sigma_s + k*initial.tau_s))*product;
+
+      double g_N = (1.0/(1.0+k*beta_s));
+      sum_l_nom+= k*temp;
+      sum_a_nom+= g_N*temp;
+      sum_c_nom+= g_N*g_N*temp;
+      sum_denom+= temp;
+      ++k;
+  }
+  //  std::cout << k << std::endl;
+  a_n = sum_a_nom/sum_denom;
+  b_n = (sum_c_nom/sum_denom) - a_n*a_n;
+  return(sum_l_nom/sum_denom);
+}
 
 /*
    double EM_Class::Generator(double &a_n,double &b_n,double R_n)
@@ -182,7 +216,7 @@ void EM_Class::Expectation_Maximization(size_t nt){
 
     size_t T = R.size();
     size_t i =0;
-
+    omp_set_num_threads(4);
 
     while(i<nt)   //NEED BETTER CONVERGENCE CRITERIONS
     {
@@ -200,7 +234,7 @@ void EM_Class::Expectation_Maximization(size_t nt){
         {
             double a_n,b_n;
             double R_n =R.at(n);
-            double lambda_n = generate_lambda_an_bn(a_n,b_n,R_n);
+            double lambda_n = generate_lambda_an_bn_2(a_n,b_n,R_n);
             lambda_sum+=lambda_n;
 
             double temp = aver + a_n*(R_n - aver);
@@ -220,13 +254,13 @@ void EM_Class::Expectation_Maximization(size_t nt){
         initial.mu = mu_sum/double(T);
         initial.sigma_s = (sigma_sum/double(T)) - initial.mu*initial.mu;
         initial.tau_s = (tau_term/lambda_sum) -initial.nu*initial.nu;
-   		double likelihood = incomp_log_likelihood();
-//        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << beta_s<<" "<<likelihood << endl;	
+        double likelihood = incomp_log_likelihood();
+        //        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << beta_s<<" "<<likelihood << endl;	
         //		double likelihood = incomp_log_likelihood1();
         //		double likelihood2 = incomp_log_likelihood2();
 
     }
-        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << endl;	
+    std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << endl;	
 
 }
 EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
@@ -243,25 +277,25 @@ EM_Class::EM_Class()
 
 }
 /*
-void EM_Class::set_output(std::string filedest)
-{
-    outputstream.open("outputtest10.txt");
-}
-void EM_Class::close_output()
-{
-    outputstream.close();
-}
-*/
-
-   chrono::high_resolution_clock::time_point EM_Class::start_timing(){
-   return chrono::high_resolution_clock::now();
+   void EM_Class::set_output(std::string filedest)
+   {
+   outputstream.open("outputtest10.txt");
    }
-
-   void EM_Class::end_timing(chrono::high_resolution_clock::time_point t1){
-       chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
-       auto duration = chrono::duration_cast<chrono::microseconds>( t2 - t1 ).count();
-       cout << "The time to convergence was " << duration << endl;
+   void EM_Class::close_output()
+   {
+   outputstream.close();
    }
+   */
+
+chrono::high_resolution_clock::time_point EM_Class::start_timing(){
+    return chrono::high_resolution_clock::now();
+}
+
+void EM_Class::end_timing(chrono::high_resolution_clock::time_point t1){
+    chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::microseconds>( t2 - t1 ).count();
+    cout << "The time to convergence was " << duration << endl;
+}
 /*
    double EM_Class::thread_start_timing()
    {
