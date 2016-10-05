@@ -20,7 +20,8 @@ int main()
 	size_t number_of_terms=100;
 	vector<EM_Class> testvector(samplesize);
 	size_t num_iterations =250;
-	string Dataset_Loc ="R_real_sub_diff1.txt";
+//	string Dataset_Loc ="R_real_sub_diff1.txt";
+	string Dataset_Loc ="bigger_data.txt";
 	EM_Class param_getter;
 	param_getter.load_R(Dataset_Loc);
 	double average = param_getter.average();
@@ -34,7 +35,7 @@ int main()
 //	testvector.at(0).set_output(output);
 //	EM_Class::set_output(output);
 	ofstream output1;
-	//output1.open("papertest_1.txt");
+//	output1.open("bigger_data.txt");
 	output1.open("Real1_ResultsBrownianTest.txt");
 	if(lambda_start<0)
 	{
