@@ -178,7 +178,7 @@ double EM_Class::generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n)
       prev_sum_l_nom = sum_l_nom;
       product *= initial.lambda/k;
      // temp =normal_pdf_fewer(R_n-mu - k*nu,sigma_s + k*tau_s)*product;
-      //temp =normal_pdf(R_n,k,sigma_s,tau_s,mu,nu)*product;
+      ///temp =normal_pdf(R_n,k,sigma_s,tau_s,mu,nu)*product;
       temp =gsl_ran_gaussian_pdf (R_n-initial.mu - k*initial.nu,sqrt(initial.sigma_s + k*initial.tau_s))*product;
 
       double g_N = (1.0/(1.0+k*beta_s));
@@ -216,7 +216,7 @@ void EM_Class::Expectation_Maximization(size_t nt){
 
     size_t T = R.size();
     size_t i =0;
-    omp_set_num_threads(4);
+    omp_set_num_threads(2);
 
     while(i<nt)   //NEED BETTER CONVERGENCE CRITERIONS
     {
@@ -254,12 +254,13 @@ void EM_Class::Expectation_Maximization(size_t nt){
         initial.mu = mu_sum/double(T);
         initial.sigma_s = (sigma_sum/double(T)) - initial.mu*initial.mu;
         initial.tau_s = (tau_term/lambda_sum) -initial.nu*initial.nu;
-        double likelihood = incomp_log_likelihood();
         //        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << beta_s<<" "<<likelihood << endl;	
         //		double likelihood = incomp_log_likelihood1();
         //		double likelihood2 = incomp_log_likelihood2();
 
     }
+    double likelihood = incomp_log_likelihood();
+
     std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << endl;	
 
 }
