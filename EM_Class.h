@@ -18,9 +18,9 @@ const double PI = atan(1.0)*4;
 class EM_Class{
 
     public:
-        EM_Class(size_t a,double mu1,double nu1,double l,double t,double s);
+        EM_Class(size_t max_p_terms,double mu1,double nu1,double l,double t,double s);
         EM_Class();
-        void load(size_t a,double mu1,double nu1,double l,double t,double s);
+        void load(size_t max_p_terms,double mu1,double nu1,double l,double t,double s);
         void print_out_stream(std::ofstream &output1);	
         double average();
         double bipower_sigma_s();
@@ -39,16 +39,20 @@ class EM_Class{
         double generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n);
         //double normal_pdf(double R_n,int k);
         inline double normal_pdf(double R_n,int k);
-        double incomp_log_likelihood();
-        double incomp_log_likelihood_threaded();
+        inline double normal_pdf_no_const(double R_n,int k);
+	double incomp_log_likelihood();
+        double incomp_log_likelihood_threaded_clean();
+	vector<double> expected_num_of_jumps();
+	void print_vec_to_file(vector<double> d);
 
     protected:
     private:
         std::vector <double> R;
         parameters initial;
         parameters maximising;
-        size_t m;
-        //        int n;
+        size_t max_poisson_terms_;
+        int debug_level;
+	//        int n;
         double final_log_likelihood;
         size_t iterations_completed;
 };

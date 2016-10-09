@@ -14,9 +14,9 @@ void EM_Class::load_R(std::string fileloc)
     double val;
     while( data >> val )
     {
-        R.push_back( val );
+	R.push_back( val );
 
-        //std::cout << ++counter << std::endl;
+	//std::cout << ++counter << std::endl;
     }
     data.close();
 }
@@ -27,25 +27,33 @@ inline double EM_Class::normal_pdf(double R_n,int k)
     double s = sqrt(initial.sigma_s + k*initial.tau_s);
     double a = (R_n-initial.mu - k*initial.nu) / s;
     double temp = (inv_sqrt_2pi / (s) )* exp(-0.5 * a * a);
-    static size_t i =0;
+ //   static size_t i =0;
 
-/*   if(std::isnan(temp)&& i<10)    {
-       ++i;
-       std::cout << initial.sigma_s << " " << initial.tau_s << std::endl;
-       std::cout << sqrt(initial.sigma_s + k*(initial.tau_s)) << std::endl;
-       std::cout <<s << " " << a << " " << temp << std::endl;
-    }*/
+    /*   if(std::isnan(temp)&& i<10)    {
+	 ++i;
+	 std::cout << initial.sigma_s << " " << initial.tau_s << std::endl;
+	 std::cout << sqrt(initial.sigma_s + k*(initial.tau_s)) << std::endl;
+	 std::cout <<s << " " << a << " " << temp << std::endl;
+	 }*/
 
     return temp;
 }
 
+inline double EM_Class::normal_pdf_no_const(double R_n,int k)
+{
+    double s = sqrt(initial.sigma_s + k*initial.tau_s);
+    double a = (R_n-initial.mu - k*initial.nu) / s;
+    double temp = exp(-0.5 * a * a)/s;
+    
+    return temp;
+}
 
 double EM_Class::average(){
     size_t n =R.size();
     double sum=0;
     for(size_t i=0;i<n;++i)
     {
-        sum += R.at(i);
+	sum += R.at(i);
     }
     return (sum/n);
 }
@@ -55,7 +63,7 @@ double EM_Class::bipower_sigma_s()
     double bipower_sum=0;
     for(size_t i=1;i<n;++i)
     {
-        bipower_sum += fabs(R.at(i)*R.at(i-1));
+	bipower_sum += fabs(R.at(i)*R.at(i-1));
     }
     return bipower_sum/(n*(0.79788)*(0.79788));
 }
@@ -66,9 +74,9 @@ double EM_Class::tau_estim(double average,double bipower_sigma_s,double &lambda)
     double var4=0;
     for(size_t i=0;i<n;++i)
     {
-        double temp =(R.at(i)-average)*(R.at(i)-average);
-        var +=temp;
-        var4 +=temp*temp;
+	double temp =(R.at(i)-average)*(R.at(i)-average);
+	var +=temp;
+	var4 +=temp*temp;
     }
     var = var/n;
     var4= var4/n;
@@ -85,7 +93,7 @@ double EM_Class::tau_estim(double average,double bipower_sigma_s,double &lambda)
 
 void EM_Class::load(size_t a,double mu1,double nu1,double l,double t,double s)
 {
-    m=a;
+    max_poisson_terms_=a;
     initial.lambda = l;
     initial.nu = nu1;
     initial.mu = mu1;
@@ -100,29 +108,87 @@ void EM_Class::print_out_stream(ofstream &output1)
 }
 double EM_Class::incomp_log_likelihood()
 {
-    return incomp_log_likelihood_threaded();
+    return incomp_log_likelihood_threaded_clean();
 }
 
+
+
+
+/*
 double EM_Class::incomp_log_likelihood_threaded(){
     double incomplete_log_likelihood=0;
     size_t T=R.size();
 #pragma omp parallel for reduction(+:incomplete_log_likelihood )
     for(size_t n=0; n<T; ++n)
     {
-        double product =1;
-        double exptemp = exp(-initial.lambda);
-        double temp1 = exptemp*product*exp(-(R.at(n)-initial.mu)*(R.at(n)-initial.mu)/(0.5*(initial.sigma_s)))/sqrt(initial.sigma_s);
-        double templik = (temp1);
-        for(int k=1; k<10; ++k)
-        {
-            product *=(initial.lambda/double(k));
-            templik += exptemp*product*exp(-(R.at(n)-initial.mu - k*initial.nu)*(R.at(n)-initial.mu - k*initial.nu)/(0.5*(initial.sigma_s +k*initial.tau_s)))/sqrt(initial.sigma_s +k*initial.tau_s);
-        }
-        incomplete_log_likelihood += log(templik/sqrt(2.0*3.14159265359));
+	double product =1;
+	double exptemp = exp(-initial.lambda);
+	double temp1 = exptemp*product*exp(-(R.at(n)-initial.mu)*(R.at(n)-initial.mu)/(2*(initial.sigma_s)))/sqrt(initial.sigma_s);
+	double templik = (temp1);
+	for(int k=1; k<30; ++k)
+	{
+	    product *=(initial.lambda/double(k));
+	    templik += exptemp*product*exp(-(R.at(n)-initial.mu - k*initial.nu)*(R.at(n)-initial.mu - k*initial.nu)/(2*(initial.sigma_s +k*initial.tau_s)))/sqrt(initial.sigma_s +k*initial.tau_s);
+	}
+	incomplete_log_likelihood += log(templik/sqrt(2.0*3.14159265359));
 
     }
     return incomplete_log_likelihood;
 }
+*/
+double EM_Class::incomp_log_likelihood_threaded_clean(){
+    double incomplete_log_likelihood=0;
+    size_t T=R.size();
+#pragma omp parallel for reduction(+:incomplete_log_likelihood)
+    for(size_t n=0; n<T; ++n)
+    {
+	double product =1;
+	double exptemp = exp(-initial.lambda);
+	double temp1 = exptemp*product*normal_pdf_no_const(R.at(n),0);
+	double temp_lik = (temp1);
+	double prev_temp_lik;
+	size_t k =1;
+	do
+	{
+	    prev_temp_lik = temp_lik;
+	    product *=(initial.lambda/double(k));
+	    temp_lik += exptemp*product*normal_pdf_no_const(R.at(n),k);
+	    ++k;
+	} while(prev_temp_lik!=temp_lik && k<max_poisson_terms_)	;
+	//cout << k << endl;
+	incomplete_log_likelihood += log(temp_lik/sqrt(2.0*3.14159265359));
+
+    }
+    return incomplete_log_likelihood;
+}
+
+
+/*
+double EM_Class::incomp_log_likelihood_threaded_2(){
+    double incomplete_log_likelihood=0;
+    size_t T=R.size();
+#pragma omp parallel for reduction(+:incomplete_log_likelihood )
+    for(size_t n=0; n<T; ++n)
+    {
+	double product =1;
+	double exptemp = exp(-initial.lambda);
+	double temp1 = exptemp*product*normal_pdf_no_const(R.at(n),0);
+	//double temp1 = exptemp*product*exp(-(R.at(n)-initial.mu)*(R.at(n)-initial.mu)/(2*(initial.sigma_s)))/sqrt(initial.sigma_s);
+	double templik = (temp1);
+	for(int k=1; k<50; ++k)
+	{
+	    product *=(initial.lambda/double(k));
+	    templik += exptemp*product*normal_pdf_no_const(R.at(n),k);
+	}
+	incomplete_log_likelihood += log(templik/sqrt(2.0*3.14159265359));
+
+    }
+    return incomplete_log_likelihood;
+}
+
+*/
+
+
 
 double EM_Class::generate_lambda_an_bn(double &a_n,double &b_n,double R_n)
 {
@@ -134,23 +200,23 @@ double EM_Class::generate_lambda_an_bn(double &a_n,double &b_n,double R_n)
     double sum_c_nom = temp;
     double sum_denom = temp;
 
-    for(size_t k=1;k<m;++k)
+    for(size_t k=1;k<max_poisson_terms_;++k)
     {
-        product *= initial.lambda/k;
-        temp =gsl_ran_gaussian_pdf (R_n-initial.mu - k*initial.nu,sqrt(initial.sigma_s + k*initial.tau_s))*product;
-        //temp =normal_pdf(R_n,k)*product;
-        //std::cout << product << std::endl;
+	product *= initial.lambda/k;
+	temp =gsl_ran_gaussian_pdf (R_n-initial.mu - k*initial.nu,sqrt(initial.sigma_s + k*initial.tau_s))*product;
+	//temp =normal_pdf(R_n,k)*product;
+	//std::cout << product << std::endl;
 
-        if(std::isnan(temp))
-        {
-            //		 cout << "tempnan "  << k<<   endl;
-            //                      break;
-        }
-        double g_N = (1.0/(1.0+k*beta_s));
-        sum_l_nom+= k*temp;
-        sum_a_nom+= g_N*temp;
-        sum_c_nom+= g_N*g_N*temp;
-        sum_denom+= temp;
+	if(std::isnan(temp))
+	{
+	    //		 cout << "tempnan "  << k<<   endl;
+	    //                      break;
+	}
+	double g_N = (1.0/(1.0+k*beta_s));
+	sum_l_nom+= k*temp;
+	sum_a_nom+= g_N*temp;
+	sum_c_nom+= g_N*g_N*temp;
+	sum_denom+= temp;
 
     }
     a_n = sum_a_nom/sum_denom;
@@ -161,37 +227,37 @@ double EM_Class::generate_lambda_an_bn(double &a_n,double &b_n,double R_n)
 
 double EM_Class::generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n)
 {
-  double beta_s = (initial.tau_s)/(initial.sigma_s);
-  double product =1;
-//  double temp = normal_pdf_fewer(R_n-mu,sigma_s);
-  double temp = normal_pdf(R_n,0);
+    double beta_s = (initial.tau_s)/(initial.sigma_s);
+    double product =1;
+    //  double temp = normal_pdf_fewer(R_n-mu,sigma_s);
+    double temp = normal_pdf(R_n,0);
 
-  double sum_l_nom = 0;
-  double sum_a_nom = temp;
-  double sum_c_nom = temp;
-  double sum_denom = temp;
-  double prev_sum_l_nom=1;
+    double sum_l_nom = 0;
+    double sum_a_nom = temp;
+    double sum_c_nom = temp;
+    double sum_denom = temp;
+    double prev_sum_l_nom=1;
 
-  size_t k =1;
-  while(prev_sum_l_nom!=sum_l_nom && k<m)
-  {
-      prev_sum_l_nom = sum_l_nom;
-      product *= initial.lambda/k;
-     // temp =normal_pdf_fewer(R_n-mu - k*nu,sigma_s + k*tau_s)*product;
-      ///temp =normal_pdf(R_n,k,sigma_s,tau_s,mu,nu)*product;
-      temp =gsl_ran_gaussian_pdf (R_n-initial.mu - k*initial.nu,sqrt(initial.sigma_s + k*initial.tau_s))*product;
+    size_t k =1;
+    while(prev_sum_l_nom!=sum_l_nom && k<max_poisson_terms_)
+    {
+	prev_sum_l_nom = sum_l_nom;
+	product *= initial.lambda/k;
+	// temp =normal_pdf_fewer(R_n-mu - k*nu,sigma_s + k*tau_s)*product;
+	///temp =normal_pdf(R_n,k,sigma_s,tau_s,mu,nu)*product;
+	temp =gsl_ran_gaussian_pdf (R_n-initial.mu - k*initial.nu,sqrt(initial.sigma_s + k*initial.tau_s))*product;
 
-      double g_N = (1.0/(1.0+k*beta_s));
-      sum_l_nom+= k*temp;
-      sum_a_nom+= g_N*temp;
-      sum_c_nom+= g_N*g_N*temp;
-      sum_denom+= temp;
-      ++k;
-  }
-  //  std::cout << k << std::endl;
-  a_n = sum_a_nom/sum_denom;
-  b_n = (sum_c_nom/sum_denom) - a_n*a_n;
-  return(sum_l_nom/sum_denom);
+	double g_N = (1.0/(1.0+k*beta_s));
+	sum_l_nom+= k*temp;
+	sum_a_nom+= g_N*temp;
+	sum_c_nom+= g_N*g_N*temp;
+	sum_denom+= temp;
+	++k;
+    }
+    //  std::cout << k << std::endl;
+    a_n = sum_a_nom/sum_denom;
+    b_n = (sum_c_nom/sum_denom) - a_n*a_n;
+    return(sum_l_nom/sum_denom);
 }
 
 /*
@@ -211,7 +277,7 @@ double EM_Class::generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n)
    {  
    return exp( -1 * (x - initial.mu-k*initial.nu) * (x -  initial.mu-k*initial.nu) / (2 *(sigma_s +k*tau_s))) / (sqrt((sigma_s +k*tau_s)*2 * 3.14159265));
    }
-   */
+ */
 void EM_Class::Expectation_Maximization(size_t nt){
 
     size_t T = R.size();
@@ -220,63 +286,115 @@ void EM_Class::Expectation_Maximization(size_t nt){
 
     while(i<nt)   //NEED BETTER CONVERGENCE CRITERIONS
     {
-        ++i;
-        double beta_s = initial.tau_s/initial.sigma_s;
-        double aver =  initial.mu  - (initial.nu/beta_s);
-        double nu_sum=0;
-        double mu_sum=0;
-        double lambda_sum=0;
-        double sigma_sum =0;
-        double tau_term=0;
+	++i;
+	double beta_s = initial.tau_s/initial.sigma_s;
+	double aver =  initial.mu  - (initial.nu/beta_s);
+	double nu_sum=0;
+	double mu_sum=0;
+	double lambda_sum=0;
+	double sigma_sum =0;
+	double tau_term=0;
 
 #pragma omp parallel for reduction(+:mu_sum,nu_sum,lambda_sum,sigma_sum,tau_term)
-        for(size_t n =0;n<T;++n)
-        {
-            double a_n,b_n;
-            double R_n =R.at(n);
-            double lambda_n = generate_lambda_an_bn_2(a_n,b_n,R_n);
-            lambda_sum+=lambda_n;
+	for(size_t n =0;n<T;++n)
+	{
+	    double a_n,b_n;
+	    double R_n =R.at(n);
+	    double lambda_n = generate_lambda_an_bn_2(a_n,b_n,R_n);
+	    lambda_sum+=lambda_n;
 
-            double temp = aver + a_n*(R_n - aver);
-            mu_sum += temp;
-            double temp2 = (1.0 -a_n)*(R_n - aver);
-            nu_sum += temp2;	
+	    double temp = aver + a_n*(R_n - aver);
+	    mu_sum += temp;
+	    double temp2 = (1.0 -a_n)*(R_n - aver);
+	    nu_sum += temp2;	
 
-            sigma_sum += initial.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver) + temp*temp;
+	    sigma_sum += initial.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver) + temp*temp;
 
-            double c_n = beta_s*a_n*(1.0-a_n)- beta_s*b_n -((1.0-a_n)*(1.0-a_n))/lambda_n;
+	    double c_n = beta_s*a_n*(1.0-a_n)- beta_s*b_n -((1.0-a_n)*(1.0-a_n))/lambda_n;
 
-            tau_term += initial.tau_s*(lambda_n -1 + a_n) + c_n*(R_n -aver)*(R_n -aver) + temp2*temp2/lambda_n;
+	    tau_term += initial.tau_s*(lambda_n -1 + a_n) + c_n*(R_n -aver)*(R_n -aver) + temp2*temp2/lambda_n;
 
-        }
-        initial.lambda = lambda_sum/double(T);
-        initial.nu = nu_sum/lambda_sum;
-        initial.mu = mu_sum/double(T);
-        initial.sigma_s = (sigma_sum/double(T)) - initial.mu*initial.mu;
-        initial.tau_s = (tau_term/lambda_sum) -initial.nu*initial.nu;
-        //        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << beta_s<<" "<<likelihood << endl;	
-        //		double likelihood = incomp_log_likelihood1();
-        //		double likelihood2 = incomp_log_likelihood2();
-
+	}
+	initial.lambda = lambda_sum/double(T);
+	initial.nu = nu_sum/lambda_sum;
+	initial.mu = mu_sum/double(T);
+	initial.sigma_s = (sigma_sum/double(T)) - initial.mu*initial.mu;
+	initial.tau_s = (tau_term/lambda_sum) -initial.nu*initial.nu;
+	
+	if(debug_level>0){
+	    double likelihood = incomp_log_likelihood();
+	    std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << beta_s<<" "<<likelihood << endl;	
+	}
+	if(debug_level>2){
+	    double likelihood = incomp_log_likelihood();
+	    //double likelihood2 = incomp_log_likelihood_threaded_clean();
+	    cout <<"The log likelihood is"<< likelihood << endl;
+	}
     }
-    double likelihood = incomp_log_likelihood();
+    //double likelihood = incomp_log_likelihood();
 
-    std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << endl;	
+    if(debug_level>-1){
+	std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.lambda << " "<< initial.tau_s<< " " << endl;	
+	double likelihood = incomp_log_likelihood();
+    }
 
 }
 EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
 {
-    m=a;
+    max_poisson_terms_=a;
     initial.lambda = l;
     initial.nu = nu1;
     initial.mu = mu1;
     initial.tau_s = t;
     initial.sigma_s =s;
+    debug_level=0;
 }
 EM_Class::EM_Class()
 {
-
+    debug_level=0;
 }
+void EM_Class::print_vec_to_file(vector<double> d)
+{
+    ofstream output1;
+    output1.open("JumpNumberExpectation.txt");
+    size_t n = d.size();
+    for(size_t i=0;i<n;++i)
+    {	
+	output1 << d.at(i) << endl;
+    }	
+}
+
+vector<double> EM_Class::expected_num_of_jumps()
+{
+    double incomplete_log_likelihood=0;
+    size_t T=R.size();
+    vector<double> num_jumps_expected(T);
+#pragma omp parallel for
+    for(size_t n=0; n<T; ++n)
+    {
+	double product =1;
+	double exptemp = exp(-initial.lambda);
+	double denom = exptemp*product*normal_pdf_no_const(R.at(n),0);
+	double num=0.0;
+	double prev_num;
+	size_t k =1;
+	do
+	{
+	    prev_num = num;
+	    product *=(initial.lambda/double(k));
+	    double temp= exptemp*product*normal_pdf_no_const(R.at(n),k);
+	    num+=k*temp;
+	    denom+=temp;
+	    ++k;
+	} while(prev_num!=num && k<max_poisson_terms_);
+	//cout << k << endl;
+	num_jumps_expected.at(n)=num/denom;
+    }
+    print_vec_to_file(num_jumps_expected);
+    return num_jumps_expected;
+}
+
+
 /*
    void EM_Class::set_output(std::string filedest)
    {
@@ -286,7 +404,7 @@ EM_Class::EM_Class()
    {
    outputstream.close();
    }
-   */
+ */
 
 chrono::high_resolution_clock::time_point EM_Class::start_timing(){
     return chrono::high_resolution_clock::now();
@@ -308,7 +426,7 @@ void EM_Class::end_timing(chrono::high_resolution_clock::time_point t1){
    double duration = t2-t1
    cout << "The time (thread) to convergence was " << duration << endl;   
    }
-   */
+ */
 /*
 
    void EM_Class::Expectation_Maximization(int nt)
@@ -443,12 +561,12 @@ for(int n=0;n<T;++n)
     //double templik=0;
     double product =1;
     double exptemp = exp(-initial.lambda);
-    double temp1 = exptemp*product*exp(-(R.at(n)-initial.mu)*(R.at(n)-initial.mu)/(0.5*(initial.sigma_s)))/sqrt(initial.sigma_s);
+    double temp1 = exptemp*product*exp(-(R.at(n)-initial.mu)*(R.at(n)-initial.mu)/(2*(initial.sigma_s)))/sqrt(initial.sigma_s);
     double templik = (temp1);
     for(int k=1;k<2;++k)
     {
-        product *=(initial.lambda/double(k));
-        templik += exptemp*product*exp(-(R.at(n)-initial.mu - k*initial.nu)*(R.at(n)-initial.mu - k*initial.nu)/(0.5*(initial.sigma_s +k*initial.tau_s)))/sqrt(initial.sigma_s +k*initial.tau_s);
+	product *=(initial.lambda/double(k));
+	templik += exptemp*product*exp(-(R.at(n)-initial.mu - k*initial.nu)*(R.at(n)-initial.mu - k*initial.nu)/(2*(initial.sigma_s +k*initial.tau_s)))/sqrt(initial.sigma_s +k*initial.tau_s);
     }
     incomplete_log_likelihood += log(templik/sqrt(2.0*3.14159265359));
 
@@ -484,7 +602,7 @@ if(initial.tau_s <0)
   initial.tau_s = t;
   initial.sigma_s =s;
   }
-  */
+ */
 
 /*void EM_Class::create_prob_vector(std::vector <double> &prob_vector1,double R_n)
   {
@@ -503,7 +621,7 @@ if(initial.tau_s <0)
   double x = R_n-initial.mu - k*initial.nu;
   return (1/sqrt(2*PI*(var)))*exp(-(x*x)/(2*var));
   }
-  */
+ */
 /*double EM_Class::normal_pdf(double R_n,int k)
   {
 
@@ -531,12 +649,12 @@ if(initial.tau_s <0)
    {
    double product =1;
    double exptemp = exp(-initial.lambda);
-   double temp1 = exptemp*product*exp(-(R.at(n)-initial.mu)*(R.at(n)-initial.mu)/(0.5*(initial.sigma_s)))/sqrt(initial.sigma_s);
+   double temp1 = exptemp*product*exp(-(R.at(n)-initial.mu)*(R.at(n)-initial.mu)/(2*(initial.sigma_s)))/sqrt(initial.sigma_s);
    double templik = (temp1);
    for(size_t k=1;k<300;++k)
    {
    product *=(initial.lambda/double(k));
-   templik += exptemp*product*exp(-(R.at(n)-initial.mu - k*initial.nu)*(R.at(n)-initial.mu - k*initial.nu)/(0.5*(initial.sigma_s +k*initial.tau_s)))/sqrt(initial.sigma_s +k*initial.tau_s);
+   templik += exptemp*product*exp(-(R.at(n)-initial.mu - k*initial.nu)*(R.at(n)-initial.mu - k*initial.nu)/(2*(initial.sigma_s +k*initial.tau_s)))/sqrt(initial.sigma_s +k*initial.tau_s);
    }
    incomplete_log_likelihood += log(templik/sqrt(2.0*3.14159265359));
 
@@ -544,5 +662,5 @@ if(initial.tau_s <0)
 //      std::cout << "The incomplete log likelihood is " << incomplete_log_likelihood <<std::endl;
 return incomplete_log_likelihood;
 }
-*/
+ */
 

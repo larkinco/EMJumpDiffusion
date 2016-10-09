@@ -69,6 +69,11 @@ int main()
     //	cout << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" "<< endl;
 		output1 << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" ";
 		testvector.at(i).print_out_stream(output1);
+		if(i==0)
+		{
+		    vector<double> jumps = testvector.at(i).expected_num_of_jumps();
+		}
+
 	}
 
     chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
