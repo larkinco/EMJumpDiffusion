@@ -62,10 +62,11 @@ int main()
 //		double sigma_s= bipower_sigma_s;
 		double tao_s= tau_s_start*(1.5 -rand01());   //rand01();
 
-		testvector.at(i).load(number_of_terms,mu,nu,lambda,tao_s,sigma_s);
+		testvector.at(i).load(number_of_terms,mu,nu,sigma_s,tao_s,lambda);
 		testvector.at(i).load_R(Dataset_Loc);
 	//	testvector.at(i).load_R("R_real_sub_diff3.txt");
-		testvector.at(i).Expectation_Maximization(num_iterations);
+		testvector.at(i).set_max_iterations(num_iterations);
+        std::vector<double> results =testvector.at(i).Expectation_Maximization();
     //	cout << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" "<< endl;
 		output1 << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" ";
 		testvector.at(i).print_out_stream(output1);
