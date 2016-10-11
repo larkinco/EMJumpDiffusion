@@ -40,6 +40,7 @@ class EM_Class{
         //void create_prob_vector(std::vector <double> &prob_vector1,double R_n);
         double generate_lambda_an_bn(double &a_n,double &b_n,double R_n);
         double generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n);
+        double generate_lambda_an_bn_2_vec(double &a_n,double &b_n,const double R_n);
         //double normal_pdf(double R_n,int k);
         inline double normal_pdf(double R_n,int k);
         inline double normal_pdf_no_const(double R_n,int k);

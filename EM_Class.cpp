@@ -206,8 +206,6 @@ double EM_Class::incomp_log_likelihood_threaded_2(){
 
 */
 
-
-
 double EM_Class::generate_lambda_an_bn(double &a_n,double &b_n,double R_n)
 {
     double beta_s = (initial.tau_s)/(initial.sigma_s);
@@ -277,6 +275,77 @@ double EM_Class::generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n)
     return(sum_l_nom/sum_denom);
 }
 
+double EM_Class::generate_lambda_an_bn_2_vec(double &a_n,double &b_n,const double R_n)
+{
+    double beta_s = (initial.tau_s)/(initial.sigma_s);
+    double product =1;
+    //  double temp = normal_pdf_fewer(R_n-mu,sigma_s);
+    double temp = normal_pdf(R_n,0);
+
+    double sum_l_nom = 0;
+    double sum_a_nom = temp;
+    double sum_c_nom = temp;
+    double sum_denom = temp;
+    double prev_sum_l_nom=1;
+    const size_t vec_size=4;
+
+    size_t k =1;
+    while(prev_sum_l_nom!=sum_l_nom && k<max_poisson_terms_)
+    {
+	double sub_l_nom[4];
+	double sub_a_nom[4];
+	double sub_c_nom[4];
+	double sub_denom[4];
+	double sub_product[4];	
+	sub_product[0]=initial.lambda/k;
+	sub_product[1]=initial.lambda*initial.lambda/(k*k+1);
+	sub_product[2]=initial.lambda*initial.lambda*initial.lambda/(k*(k+1)*(k+2));
+	sub_product[3]=initial.lambda*initial.lambda*initial.lambda*initial.lambda/(k*(k+1)*(k+2)*(k+3));
+	
+        prev_sum_l_nom = sum_l_nom;
+
+	for(size_t j=0;j<vec_size;++j)
+	{
+	    temp =normal_pdf(R_n,k+j)*product;
+	    double g_N = (1.0/(1.0+(k+j)*beta_s));
+	    sub_l_nom[j]= (k+j)*temp;
+	    sub_a_nom[j]= g_N*temp;
+	    sub_c_nom[j]= g_N*g_N*temp;
+	    sub_denom[j]= temp;	     
+	    //sub_product[j]=initial.lambda/(k+j);	
+	}
+	//for(size_t j=1;j<vec_size;++j){
+	  //  sub_product[j]*=sub_product[j-1];
+	//}
+	for(size_t j=0;j<vec_size;++j)
+	{
+	    sum_l_nom+= sub_l_nom[j]*sub_product[j];
+	    sum_a_nom+= sub_a_nom[j]*sub_product[j];
+	    sum_c_nom+= sub_c_nom[j]*sub_product[j];
+	    sum_denom+= sub_denom[j]*sub_product[j];
+	    
+	}
+        product*=sub_product[vec_size-1];
+
+
+
+//        sum_l_nom+= k*temp;
+  //      sum_a_nom+= g_N*temp;
+    //    sum_c_nom+= g_N*g_N*temp;
+     //   sum_denom+= temp;
+        k+=vec_size;
+    }
+    //  std::cout << k << std::endl;
+    a_n = sum_a_nom/sum_denom;
+    b_n = (sum_c_nom/sum_denom) - a_n*a_n;
+    return(sum_l_nom/sum_denom);
+}
+
+
+
+
+
+
 /*
    double EM_Class::Generator(double &a_n,double &b_n,double R_n)
    {
@@ -299,7 +368,7 @@ std::vector<double> EM_Class::Expectation_Maximization(){
 
     size_t T = R.size();
     size_t i =0;
-    omp_set_num_threads(2);
+    omp_set_num_threads(8);
     parameters prev_params =initial;
 
     do
@@ -319,18 +388,15 @@ std::vector<double> EM_Class::Expectation_Maximization(){
         {
             double a_n,b_n;
             double R_n =R.at(n);
-            double lambda_n = generate_lambda_an_bn_2(a_n,b_n,R_n);
-            lambda_sum+=lambda_n;
-
+            double lambda_n = generate_lambda_an_bn_2_vec(a_n,b_n,R_n);
             double temp = aver + a_n*(R_n - aver);
-            mu_sum += temp;
             double temp2 = (1.0 -a_n)*(R_n - aver);
-            nu_sum += temp2;	
-
-            sigma_sum += initial.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver) + temp*temp;
-
             double c_n = beta_s*a_n*(1.0-a_n)- beta_s*b_n -((1.0-a_n)*(1.0-a_n))/lambda_n;
-
+  
+            lambda_sum+=lambda_n;
+            mu_sum += temp;
+            nu_sum += temp2;	
+            sigma_sum += initial.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver) + temp*temp;
             tau_term += initial.tau_s*(lambda_n -1 + a_n) + c_n*(R_n -aver)*(R_n -aver) + temp2*temp2/lambda_n;
 
         }
