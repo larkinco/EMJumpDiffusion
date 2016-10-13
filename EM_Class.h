@@ -52,18 +52,35 @@ class EM_Class{
         inline double rand01();
         void set_max_iterations(size_t max_em_iterations);
         bool convergence_test(size_t, parameters);
+        double rel_eucl_dist_sqr(parameters prev_params, parameters current_params);
+        double eucl_dist_sqr(parameters prev_params, parameters current_params);
+        bool distance_convergence(double distance_sqr,double rel_distance_sqr);
+        void set_debug_level(int i);
+        void set_rel_dist_conv_flag(bool flag);
+        void set_dist_conv_flag(bool flag);
+        void set_dist_s_tol(double tol);
+        void set_rel_dist_s_tol(double tol);
+
     protected:
     private:
         std::vector <double> R;
         parameters initial;
+        //SAVE STARTING CONDITIONS
+        parameters start_;
         parameters maximising;
         size_t max_poisson_terms_;
-        int debug_level;
+        int debug_level_;
         //size_t m;
         size_t max_window_size; 
         double final_log_likelihood;
-        size_t iterations_completed;
+        size_t iterations_completed_;
         size_t max_em_iterations_;
+        double final_rel_distance_s_;
+        double final_distance_s_;
+        double rel_distance_s_tol_;
+        double distance_s_tol_;
+        bool rel_distance_flag_;
+        bool distance_flag_;
 };
 
 #endif // EM_CLASS_H

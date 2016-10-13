@@ -121,7 +121,7 @@ void EM_Class::set_max_poisson_terms(size_t max_poisson_terms)
 
 void EM_Class::print_out_stream(ofstream &output1)
 {
-    output1 << initial.mu << " " << initial.nu << " " << initial.lambda << " " << initial.sigma_s << " " << initial.tau_s << " " << iterations_completed << " " << final_log_likelihood <<  " " << incomp_log_likelihood() << endl;
+    output1 << initial.mu << " " << initial.nu << " " << initial.lambda << " " << initial.sigma_s << " " << initial.tau_s << " " << iterations_completed_ << " " << final_log_likelihood <<  " " << incomp_log_likelihood() << endl;
 
 }
 double EM_Class::incomp_log_likelihood()
@@ -370,6 +370,7 @@ std::vector<double> EM_Class::Expectation_Maximization(){
     size_t i =0;
     omp_set_num_threads(8);
     parameters prev_params =initial;
+    start_=intial;
 
     do
     {
@@ -406,11 +407,11 @@ std::vector<double> EM_Class::Expectation_Maximization(){
         initial.sigma_s = (sigma_sum/double(T)) - initial.mu*initial.mu;
         initial.tau_s = (tau_term/lambda_sum) -initial.nu*initial.nu;
 
-        if(debug_level>0){
+        if(debug_level_>0){
             double likelihood = incomp_log_likelihood();
             std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s << " "<< initial.lambda<<" "<<likelihood << endl;	
         }
-        if(debug_level>2){
+        if(debug_level_>2){
             double likelihood = incomp_log_likelihood();
             //double likelihood2 = incomp_log_likelihood_threaded_clean();
             cout <<"The log likelihood is"<< likelihood << endl;
@@ -418,25 +419,84 @@ std::vector<double> EM_Class::Expectation_Maximization(){
     }while(!convergence_test(i,prev_params));
     //double likelihood = incomp_log_likelihood();
 
-    if(debug_level>-1){
+    if(debug_level_>-1){
         std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s<< " "<< initial.lambda<< " " << endl;	
         double likelihood = incomp_log_likelihood();
     }   //NEED BETTER CONVERGENCE CRITERIONS
     
     return initial.get_params();
+    //FIX THIS, NEED TO RETURN CONVERGENCE INFO.
 }
-
 
 bool EM_Class::convergence_test(size_t i,parameters prev_params)
 {
-    if(i<max_em_iterations_)
+    double distance_sqr = eucl_dist_sqr(prev_params,initial);
+    double rel_distance_sqr = rel_eucl_dist_sqr(prev_params,initial);
+    if(debug_level_>1)
     {
-        return false;
+        cout << "Stopping Check, iteration number = "<< i << " ,distance_sqr = " << distance_sqr <<" ,rel_distance_sqr = " << rel_distance_sqr << endl;
+    }
+    //if(i<max_em_iterations_&&max_iteration_stopping_)
+    bool dist_converg=distance_convergence(distance_sqr,rel_distance_sqr);
+    if((i>=max_em_iterations_)||dist_converg)
+    {
+        final_rel_distance_s_=rel_distance_sqr;
+        final_rel_distance_s_=rel_distance_sqr;
+        iterations_completed_=i;
+        return true;
     }
     else
     {
-        return true;
+        return false;
     }
+}
+
+bool EM_Class::distance_convergence(double distance_sqr,double rel_distance_sqr)
+{
+    bool rel_d=false;
+    bool d=false;
+    if(rel_distance_flag_&&rel_distance_sqr<rel_distance_s_tol_)
+    {
+       // cout << "IN HERE HEREHREHREHRERHREHREHRERHERHERHERHERHERHERHERHERHERHERHERHERHER" << endl;
+        rel_d=true;
+    }
+    if(distance_flag_&&distance_sqr<distance_s_tol_)
+    {
+        d=true;       
+    }
+    return (rel_d||d);
+}
+
+double EM_Class::eucl_dist_sqr(parameters prev_params, parameters current_params)
+{
+    double distance =0.0;
+    double x =(current_params.mu-prev_params.mu);
+    distance += x*x;
+    x =(current_params.nu-prev_params.nu);
+    distance += x*x;
+    x =(current_params.lambda-prev_params.lambda);
+    distance += x*x;
+    x =(current_params.sigma_s-prev_params.sigma_s);
+    distance += x*x;
+    x =(current_params.tau_s-prev_params.tau_s);
+    distance += x*x;
+    return distance;
+}
+
+double EM_Class::rel_eucl_dist_sqr(parameters prev_params, parameters current_params)
+{
+    double distance =0.0;
+    double x =(current_params.mu-prev_params.mu)/prev_params.mu;
+    distance += x*x;
+    x =(current_params.nu-prev_params.nu)/prev_params.nu;
+    distance += x*x;
+    x =(current_params.lambda-prev_params.lambda)/prev_params.lambda;
+    distance += x*x;
+    x =(current_params.sigma_s-prev_params.sigma_s)/prev_params.sigma_s;
+    distance += x*x;
+    x =(current_params.tau_s-prev_params.tau_s)/prev_params.tau_s;
+    distance += x*x;
+    return distance;
 }
 
 EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
@@ -447,12 +507,46 @@ EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
     initial.mu = mu1;
     initial.tau_s = t;
     initial.sigma_s =s;
-    debug_level=0;
+    debug_level_=2;
+    rel_distance_s_tol_=1e-15;
+    distance_s_tol_=1e-10;
+    rel_distance_flag_=1;
+    distance_flag_=0; 
+
 }
 EM_Class::EM_Class()
 {
-    debug_level=0;
+    debug_level_=2;
+    rel_distance_s_tol_=1e-15;
+    distance_s_tol_=1e-10;
+    rel_distance_flag_=1;
+    distance_flag_=0; 
 }
+
+void EM_Class::set_debug_level(int i)
+{
+    debug_level_=i;
+}
+
+void EM_Class::set_rel_dist_conv_flag(bool flag)
+{
+    distance_flag_=flag;
+}
+void EM_Class::set_dist_conv_flag(bool flag)
+{
+    distance_flag_=flag;
+}
+void EM_Class::set_dist_s_tol(double tol)
+{
+    distance_s_tol_=tol;
+}
+void EM_Class::set_rel_dist_s_tol(double tol)
+{
+    rel_distance_s_tol_=tol;
+}
+
+
+
 void EM_Class::print_vec_to_file(vector<double> d)
 {
     ofstream output1;

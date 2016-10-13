@@ -39,11 +39,13 @@ int main()
 	if(lambda_start<0)
 	{
 		lambda_start =rand01()/10.0;
-	}
+        cout <<"lambda moments broken"<< endl;
+    }
 	if(tau_s_start<0)
 	{
 		tau_s_start = (1.5 - rand01())*bipower_sigma_s;
 		lambda_start =rand01()/5.0;
+        cout <<"tau moments broken"<< endl;
 	}
 
     chrono::high_resolution_clock::time_point t1 = chrono::high_resolution_clock::now();
@@ -66,15 +68,16 @@ int main()
 		testvector.at(i).load_R(Dataset_Loc);
 	//	testvector.at(i).load_R("R_real_sub_diff3.txt");
 		testvector.at(i).set_max_iterations(num_iterations);
-        std::vector<double> results =testvector.at(i).Expectation_Maximization();
+        testvector.at(i).set_debug_level(0);
+        //std::vector<double> results =testvector.at(i).Expectation_Maximization();
+        std::vector<double> results =testvector.at(i).auto_EM(0);
     //	cout << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" "<< endl;
-		output1 << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" ";
+		//output1 << mu <<" "<< nu <<" "<< lambda <<" "<< sigma_s <<" " << tao_s <<" ";
 		testvector.at(i).print_out_stream(output1);
 		if(i==0)
 		{
 		    vector<double> jumps = testvector.at(i).expected_num_of_jumps();
 		}
-
 	}
 
     chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
