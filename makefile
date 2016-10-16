@@ -8,4 +8,4 @@ CXXFLAGS= -fopenmp  -std=c++11 -pedantic -Wall -Wextra -Wcast-align -Wcast-qual 
 #CXXFLAGS= -fopenmp  -std=c++11 
 all:
 	    $(CXX) batchmain.cpp parameters.cpp  $(CXXFLAGS) -o EMJumpDiff
-
+	    $(CXX) batchmain_auto.cpp parameters.cpp  $(CXXFLAGS) -o autoEMJumpDiff

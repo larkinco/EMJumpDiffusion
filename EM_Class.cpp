@@ -79,16 +79,15 @@ double EM_Class::tau_estim(double average,double bipower_sigma_s,double &lambda)
     double var4=0;
     for(size_t i=0;i<n;++i)
     {
-	double temp =(R.at(i)-average)*(R.at(i)-average);
-	var +=temp;
-	var4 +=temp*temp;
+        double temp =(R.at(i)-average)*(R.at(i)-average);
+        var +=temp;
+        var4 +=temp*temp;
     }
     var = var/n;
     var4= var4/n;
     double a = (var/bipower_sigma_s)-1;
     double b = var4/(3*bipower_sigma_s*bipower_sigma_s);
     lambda = a/(b -(1+a)*(1+a));
-    //  cout << "lambda start is " << lambda << endl;
 
     double start_tau_s=(b-(1+a)*(1+a))*bipower_sigma_s;
     //                          //  cout << "this is tau " << start_tau_s << endl;
@@ -368,9 +367,9 @@ std::vector<double> EM_Class::Expectation_Maximization(){
 
     size_t T = R.size();
     size_t i =0;
-    omp_set_num_threads(8);
+    omp_set_num_threads(1);
     parameters prev_params =initial;
-    start_=intial;
+    start_=initial;
 
     do
     {
@@ -641,7 +640,8 @@ vector<double> EM_Class::auto_EM(bool random)
         lambda_start*=(1.5-rand01());
         tau_s_start*=(1.5-rand01());
     } 
-    load(max_poisson_terms_,mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
+    //load(max_poisson_terms_,mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
+    load_params(mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
     Expectation_Maximization();
 
     return initial.get_params();
