@@ -1,8 +1,15 @@
 //#include <gsl/gsl_randist.h>
+#define RCPP_FLAG 0
 #include <iostream>
 #include"EM_Class.h"
 #include<cmath>
 #include<chrono>
+#include<time.h>
+
+
+#if RCPP_FLAG==1
+  #include<Rcpp.h>
+#endif
 
 using namespace std;
 
@@ -49,9 +56,11 @@ inline double EM_Class::normal_pdf_no_const(double R_n,int k)
     double s = sqrt(initial.sigma_s + k*initial.tau_s);
     double a = (R_n-initial.mu - k*initial.nu) / s;
     double temp = exp(-0.5 * a * a)/s;
-    
+
     return temp;
 }
+
+
 
 double EM_Class::average(){
     size_t n =R.size();
@@ -160,7 +169,7 @@ double EM_Class::incomp_log_likelihood_threaded_clean(){
     for(size_t n=0; n<T; ++n)
     {
 	double product =1;
-	double exptemp = exp(-initial.lambda);
+	double exptemp = std::exp(-initial.lambda);
 	double temp1 = exptemp*product*normal_pdf_no_const(R.at(n),0);
 	double temp_lik = (temp1);
 	double prev_temp_lik;
@@ -173,7 +182,7 @@ double EM_Class::incomp_log_likelihood_threaded_clean(){
 	    ++k;
 	} while(prev_temp_lik!=temp_lik && k<max_poisson_terms_)	;
 	//cout << k << endl;
-	incomplete_log_likelihood += log(temp_lik/sqrt(2.0*3.14159265359));
+	incomplete_log_likelihood += std::log(temp_lik/std::sqrt(2.0*3.14159265359));
 
     }
     return incomplete_log_likelihood;
@@ -222,11 +231,7 @@ double EM_Class::generate_lambda_an_bn(double &a_n,double &b_n,double R_n)
 	temp =normal_pdf(R_n,k)*product;
 	//std::cout << product << std::endl;
 
-	if(std::isnan(temp))
-	{
-	    //		 cout << "tempnan "  << k<<   endl;
-	    //                      break;
-	}
+
 	double g_N = (1.0/(1.0+k*beta_s));
 	sum_l_nom+= k*temp;
 	sum_a_nom+= g_N*temp;
@@ -295,12 +300,12 @@ double EM_Class::generate_lambda_an_bn_2_vec(double &a_n,double &b_n,const doubl
 	double sub_a_nom[4];
 	double sub_c_nom[4];
 	double sub_denom[4];
-	double sub_product[4];	
+	double sub_product[4];
 	sub_product[0]=initial.lambda/k;
 	sub_product[1]=initial.lambda*initial.lambda/(k*k+1);
 	sub_product[2]=initial.lambda*initial.lambda*initial.lambda/(k*(k+1)*(k+2));
 	sub_product[3]=initial.lambda*initial.lambda*initial.lambda*initial.lambda/(k*(k+1)*(k+2)*(k+3));
-	
+
         prev_sum_l_nom = sum_l_nom;
 
 	for(size_t j=0;j<vec_size;++j)
@@ -310,8 +315,8 @@ double EM_Class::generate_lambda_an_bn_2_vec(double &a_n,double &b_n,const doubl
 	    sub_l_nom[j]= (k+j)*temp;
 	    sub_a_nom[j]= g_N*temp;
 	    sub_c_nom[j]= g_N*g_N*temp;
-	    sub_denom[j]= temp;	     
-	    //sub_product[j]=initial.lambda/(k+j);	
+	    sub_denom[j]= temp;
+	    //sub_product[j]=initial.lambda/(k+j);
 	}
 	//for(size_t j=1;j<vec_size;++j){
 	  //  sub_product[j]*=sub_product[j-1];
@@ -322,7 +327,7 @@ double EM_Class::generate_lambda_an_bn_2_vec(double &a_n,double &b_n,const doubl
 	    sum_a_nom+= sub_a_nom[j]*sub_product[j];
 	    sum_c_nom+= sub_c_nom[j]*sub_product[j];
 	    sum_denom+= sub_denom[j]*sub_product[j];
-	    
+
 	}
         product*=sub_product[vec_size-1];
 
@@ -359,7 +364,7 @@ double EM_Class::generate_lambda_an_bn_2_vec(double &a_n,double &b_n,const doubl
 
 
    double EM_Class::pdf(double x, int k)
-   {  
+   {
    return exp( -1 * (x - initial.mu-k*initial.nu) * (x -  initial.mu-k*initial.nu) / (2 *(sigma_s +k*tau_s))) / (sqrt((sigma_s +k*tau_s)*2 * 3.14159265));
    }
    */
@@ -367,7 +372,7 @@ std::vector<double> EM_Class::Expectation_Maximization(){
 
     size_t T = R.size();
     size_t i =0;
-    omp_set_num_threads(1);
+    //omp_set_num_threads(num_threads_);
     parameters prev_params =initial;
     start_=initial;
 
@@ -388,14 +393,14 @@ std::vector<double> EM_Class::Expectation_Maximization(){
         {
             double a_n,b_n;
             double R_n =R.at(n);
-            double lambda_n = generate_lambda_an_bn_2_vec(a_n,b_n,R_n);
+            double lambda_n = generate_lambda_an_bn_2(a_n,b_n,R_n);
             double temp = aver + a_n*(R_n - aver);
             double temp2 = (1.0 -a_n)*(R_n - aver);
             double c_n = beta_s*a_n*(1.0-a_n)- beta_s*b_n -((1.0-a_n)*(1.0-a_n))/lambda_n;
-  
+
             lambda_sum+=lambda_n;
             mu_sum += temp;
-            nu_sum += temp2;	
+            nu_sum += temp2;
             sigma_sum += initial.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver) + temp*temp;
             tau_term += initial.tau_s*(lambda_n -1 + a_n) + c_n*(R_n -aver)*(R_n -aver) + temp2*temp2/lambda_n;
 
@@ -407,22 +412,22 @@ std::vector<double> EM_Class::Expectation_Maximization(){
         initial.tau_s = (tau_term/lambda_sum) -initial.nu*initial.nu;
 
         if(debug_level_>0){
-            double likelihood = incomp_log_likelihood();
-            std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s << " "<< initial.lambda<<" "<<likelihood << endl;	
+          //  double likelihood = incomp_log_likelihood();
+           // std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s << " "<< initial.lambda<<" "<<likelihood << endl;
+            print_params();
         }
         if(debug_level_>2){
-            double likelihood = incomp_log_likelihood();
-            //double likelihood2 = incomp_log_likelihood_threaded_clean();
-            cout <<"The log likelihood is"<< likelihood << endl;
+            print_likelihood();
         }
     }while(!convergence_test(i,prev_params));
     //double likelihood = incomp_log_likelihood();
 
     if(debug_level_>-1){
-        std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s<< " "<< initial.lambda<< " " << endl;	
-        double likelihood = incomp_log_likelihood();
+    //    std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s<< " "<< initial.lambda<< " " << endl;
+        print_params();
+       // double likelihood = incomp_log_likelihood();
     }   //NEED BETTER CONVERGENCE CRITERIONS
-    
+
     return initial.get_params();
     //FIX THIS, NEED TO RETURN CONVERGENCE INFO.
 }
@@ -433,7 +438,11 @@ bool EM_Class::convergence_test(size_t i,parameters prev_params)
     double rel_distance_sqr = rel_eucl_dist_sqr(prev_params,initial);
     if(debug_level_>1)
     {
+     #if RCPP_FLAG==1
+        Rcpp::Rcout << "Stopping Check, iteration number = "<< i << " ,distance_sqr = " << distance_sqr <<" ,rel_distance_sqr = " << rel_distance_sqr << endl;
+     #else
         cout << "Stopping Check, iteration number = "<< i << " ,distance_sqr = " << distance_sqr <<" ,rel_distance_sqr = " << rel_distance_sqr << endl;
+     #endif
     }
     //if(i<max_em_iterations_&&max_iteration_stopping_)
     bool dist_converg=distance_convergence(distance_sqr,rel_distance_sqr);
@@ -461,7 +470,7 @@ bool EM_Class::distance_convergence(double distance_sqr,double rel_distance_sqr)
     }
     if(distance_flag_&&distance_sqr<distance_s_tol_)
     {
-        d=true;       
+        d=true;
     }
     return (rel_d||d);
 }
@@ -506,20 +515,27 @@ EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
     initial.mu = mu1;
     initial.tau_s = t;
     initial.sigma_s =s;
-    debug_level_=2;
+    debug_level_=-1;
     rel_distance_s_tol_=1e-15;
     distance_s_tol_=1e-10;
     rel_distance_flag_=1;
-    distance_flag_=0; 
+    distance_flag_=0;
+    num_threads_=1;
+    max_em_iterations_=500;
+    set_thread_num(num_threads_);
 
 }
 EM_Class::EM_Class()
 {
-    debug_level_=2;
+    debug_level_=-1;
     rel_distance_s_tol_=1e-15;
     distance_s_tol_=1e-10;
     rel_distance_flag_=1;
-    distance_flag_=0; 
+    distance_flag_=0;
+    num_threads_=1;
+    max_em_iterations_=500;
+    max_poisson_terms_=100;
+    set_thread_num(num_threads_);
 }
 
 void EM_Class::set_debug_level(int i)
@@ -544,29 +560,27 @@ void EM_Class::set_rel_dist_s_tol(double tol)
     rel_distance_s_tol_=tol;
 }
 
-
-
 void EM_Class::print_vec_to_file(vector<double> d)
 {
     ofstream output1;
     output1.open("JumpNumberExpectation.txt");
     size_t n = d.size();
     for(size_t i=0;i<n;++i)
-    {	
+    {
         output1 << d.at(i) << endl;
-    }	
+    }
 }
 
 vector<double> EM_Class::expected_num_of_jumps()
 {
-    double incomplete_log_likelihood=0;
+  //  double incomplete_log_likelihood=0;
     size_t T=R.size();
     vector<double> num_jumps_expected(T);
 #pragma omp parallel for
     for(size_t n=0; n<T; ++n)
     {
         double product =1;
-        double exptemp = exp(-initial.lambda);
+        double exptemp = std::exp(-initial.lambda);
         double denom = exptemp*product*normal_pdf_no_const(R.at(n),0);
         double num=0.0;
         double prev_num;
@@ -583,7 +597,7 @@ vector<double> EM_Class::expected_num_of_jumps()
         //cout << k << endl;
         num_jumps_expected.at(n)=num/denom;
     }
-    print_vec_to_file(num_jumps_expected);
+ //   print_vec_to_file(num_jumps_expected);
     return num_jumps_expected;
 }
 
@@ -603,16 +617,12 @@ chrono::high_resolution_clock::time_point EM_Class::start_timing(){
     return chrono::high_resolution_clock::now();
 }
 
-void EM_Class::end_timing(chrono::high_resolution_clock::time_point t1){
-    chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
-    double duration = chrono::duration_cast<chrono::microseconds>( t2 - t1 ).count();
-    cout << "The time to convergence was " << duration << endl;
-}
 
 vector<double> EM_Class::auto_EM(bool random)
 {
-    srand (time(NULL));
-    int n =R.size();
+    seed_random();
+   // srand (time(NULL));
+//    int n =R.size();
     double mean = average();
     double bipower_sigma_s_est= bipower_sigma_s();
     double lambda_start;
@@ -627,7 +637,7 @@ vector<double> EM_Class::auto_EM(bool random)
         tau_s_start = (1.5 - rand01())*bipower_sigma_s_est;
         lambda_start =rand01()/10.0;
     }
-    double zero =0;
+ //   double zero =0;
     //Expectation_Maximization_2(nt, R,average,zero ,bipower_sigma_s,tau_s_start,lambda_start,core);
     double mu_start=mean;
     double nu_start=0.0;
@@ -639,20 +649,88 @@ vector<double> EM_Class::auto_EM(bool random)
         sigma_s_start=bipower_sigma_s_est*(1.5-rand01());
         lambda_start*=(1.5-rand01());
         tau_s_start*=(1.5-rand01());
-    } 
+    }
     //load(max_poisson_terms_,mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
     load_params(mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
+    print_string("The starting conditions are ");
+    print_params();
     Expectation_Maximization();
 
     return initial.get_params();
 }
 
-
-
+#if RCPP_FLAG==1
 inline double EM_Class::rand01()
 {
-    return double(rand())/double(RAND_MAX);
+  double x =Rcpp::runif(1,0, 1)[0];
+//  if(x>1||x<0||std::isnan(x))
+//  {
+//    Rcpp::Rcout << "RAND01 IS MISBEHAVING "<<x << endl;
+//  }
+  return x;
 }
+inline void EM_Class::print_params()
+{
+  Rcpp::Rcout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s << " "<< initial.lambda << endl;
+}
+inline void EM_Class::print_string(string x)
+{
+  Rcpp::Rcout << x;
+}
+inline void EM_Class::print_likelihood(){
+  double likelihood = incomp_log_likelihood();
+  //double likelihood2 = incomp_log_likelihood_threaded_clean();
+  Rcpp::Rcout <<"The log likelihood is"<< likelihood << endl;
+}
+inline void EM_Class::print_double(double x){
+  Rcpp::Rcout <<x << endl;
+}
+void EM_Class::end_timing(chrono::high_resolution_clock::time_point t1){
+  chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+  double duration = chrono::duration_cast<chrono::microseconds>( t2 - t1 ).count();
+  Rcpp::Rcout << "The time to convergence was " << duration << endl;
+}
+inline void EM_Class::seed_random()
+{
+  //srand (time(NULL));
+  Rcpp::Environment env("package:base");
+  Rcpp::Function r_seed_setting= env["set.seed"];
+  r_seed_setting(time(NULL));
+}
+#else
+inline double EM_Class::rand01()
+{
+  return double(rand())/double(RAND_MAX);
+}
+void EM_Class::print_params()
+{
+  std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s << " "<< initial.lambda << endl;
+}
+inline void EM_Class::print_likelihood(){
+  double likelihood = incomp_log_likelihood();
+  //double likelihood2 = incomp_log_likelihood_threaded_clean();
+  cout <<"The log likelihood is"<< likelihood << endl;
+}
+inline void EM_Class::print_string(string x)
+{
+  std::cout << x;
+}
+inline void EM_Class::print_double(double x){
+  cout <<x << endl;
+}
+void EM_Class::end_timing(chrono::high_resolution_clock::time_point t1){
+  chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+  double duration = chrono::duration_cast<chrono::microseconds>( t2 - t1 ).count();
+  cout << "The time to convergence was " << duration << endl;
+}
+inline void EM_Class::seed_random()
+{
+  srand (time(NULL));
+  //set.seed();
+}
+#endif
+
+
 
 void EM_Class::set_max_iterations(size_t max_em_iterations)
 {
@@ -660,16 +738,114 @@ void EM_Class::set_max_iterations(size_t max_em_iterations)
 
 }
 
+void EM_Class::set_thread_num(size_t n){
+
+  omp_set_num_threads(n);
+ // int a;
+  }
+
+#if RCPP_FLAG==1
+std::vector<double> EM_Class::data_simulation(int n,std::vector<double> parameter_vector) {
+
+    double mu =parameter_vector[0];
+    double nu =parameter_vector[1];
+    double sigma =sqrt(parameter_vector[2]);
+    double tau =sqrt(parameter_vector[3]);
+    double lambda =parameter_vector[4];
+
+    std::vector<double> data(n);
+
+    //std::default_random_engine de(time(0)); //seed
+    //std::normal_distribution <double> nd(mu, sigma); //mean followed by stdiv
+
+//    std::normal_distribution <double> jump(nu, tau); //mean followed by stdiv
+
+  //  for(int i =0;i<n;++i)
+    //{
+    //  data.at(i) = nd(de);
+    //}
+
+    data=Rcpp::as<vector<double> >(Rcpp::rnorm(n,mu,sigma));
 
 
 
+ //   std::default_random_engine generator;
+//    std::poisson_distribution<int> distribution(lambda);
+
+    std::vector<int> N(n);
+  //  std::vector<double> jumpnorm(max_element(N);
+
+    N=Rcpp::as<vector<int> >(Rcpp::rpois(n,lambda));
+
+    for(int i=0; i<n; ++i)
+    {
+     // N.at(i) = distribution(generator);
+     std::vector<double> JumpComp = Rcpp::as<vector<double> >(Rcpp::rnorm(N.at(i),nu,tau));
+      for(int j =0; j < N.at(i);++j)
+      {
+        data.at(i)+= JumpComp.at(j);
+      }
+    }
+    return data;
+  }
+#endif
+/*
+ std::vector<double> DataSimulation_comp(int n,std::vector<double> parameter_vector) {
+
+double mu =parameter_vector[0];
+double nu =parameter_vector[1];
+double sigma =sqrt(parameter_vector[2]);
+double tau =sqrt(parameter_vector[3]);
+double lambda =parameter_vector[4];
+
+std::vector<double> data(n);
+
+std::default_random_engine de(time(0)); //seed
+std::normal_distribution <double> nd(mu, sigma); //mean followed by stdiv
+
+std::normal_distribution <double> jump(nu, tau); //mean followed by stdiv
+
+for(int i =0;i<n;++i)
+{
+data.at(i) = nd(de);
+}
+
+std::default_random_engine generator;
+std::poisson_distribution<int> distribution(lambda);
+
+std::vector<int> N(n);
+
+for(int i=0; i<n; ++i)
+{
+N.at(i) = distribution(generator);
+for(int j =0; j < N.at(i);++j)
+{
+data.at(i)+= jump(de);
+}
+}
+return data;
+}
+*/
 
 
-
-
-
-
-
+#if RCPP_FLAG==1
+RCPP_MODULE(mod_EM_Class) {
+  Rcpp::class_<EM_Class>("EM_Class")
+  .constructor()
+  .constructor<int,double,double,double,double,double>()
+  .method( "ExpectationMaximatization", &EM_Class::Expectation_Maximization )
+  .method( "loadDataset",&EM_Class::set_R)
+  .method( "autoEM",&EM_Class::auto_EM)
+  .method( "setDebugLevel",&EM_Class::set_debug_level)
+  .method("setMaxEMIterations",&EM_Class::set_max_iterations)
+  .method("setMaxPoissonTerms",&EM_Class::set_max_poisson_terms)
+  .method("expectedNumberOfJumps",&EM_Class::expected_num_of_jumps)
+  .method("setThreadNumber",&EM_Class::set_thread_num)
+  .method("dataSimulation",&EM_Class::data_simulation)
+  //    .method( "Load_Dataset",&EM_Class::set_R)
+  ;
+}
+#endif
 
 
 
@@ -681,13 +857,13 @@ void EM_Class::set_max_iterations(size_t max_em_iterations)
 /*
    double EM_Class::thread_start_timing()
    {
-   return omp_get_wtime()   
+   return omp_get_wtime()
    }
    void EM_Class::thread_end_timing(double t1)
    {
    double t2 = omp_get_wtime()
    double duration = t2-t1
-   cout << "The time (thread) to convergence was " << duration << endl;   
+   cout << "The time (thread) to convergence was " << duration << endl;
    }
    */
 /*
@@ -752,13 +928,13 @@ nu_sum +=  (1.0-a_n)*(R_n-aver);
 //			break;
 //		}
 
-//	cout << (1-a.at(n)) << endl; 
+//	cout << (1-a.at(n)) << endl;
 double c_n = beta_s*a_n*(1.0-a_n)- beta_s*(b_n) -(1.0-a_n)*(1.0-a_n)/lambda_n;
 //       double c_n = beta_s*a.at(n)*(1-a.at(n))- beta_s*(b.at(n)) -(1-a.at(n))*(1-a.at(n))/lambda_n.at(n);
 //t_term +=  (beta_s*a.at(n)*(1-a.at(n))- beta_s*b.at(n));
 t_term += initial.tau_s*(lambda_n -1.0 + a_n) + c_n*(R_n -aver)*(R_n -aver) +(1.0-a_n)*(R_n-aver)*(1.0-a_n)*(R_n-aver)/lambda_n;
 //t_term += initial.tau_s*(lambda_n.at(n) -1 + a.at(n)) + c_n*(R_n -aver)*(R_n -aver) +(1-a.at(n))*(R_n-aver)*(1-a.at(n))*(R_n-aver)/lambda_n.at(n);
-estim_sigma_s += temp*temp +initial.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver); 
+estim_sigma_s += temp*temp +initial.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver);
 //       estim_sigma_s += temp*temp +initial.sigma_s*(1-a.at(n)) + b.at(n)*(R_n - aver)*(R_n - aver);
 }
 
