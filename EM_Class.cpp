@@ -1,5 +1,5 @@
 //#include <gsl/gsl_randist.h>
-#define RCPP_FLAG 0
+#define RCPP_FLAG 1
 #include <iostream>
 #include"EM_Class.h"
 #include<cmath>
@@ -30,7 +30,10 @@ void EM_Class::load_R(std::string fileloc)
 
 void EM_Class::set_R(std::vector<double> R_in){
 
-    R=R_in;
+  //  R=R_in;
+    full_returns=R_in;
+    R.assign(full_returns.end() - std::min(full_returns.size(), max_window_size_ ), full_returns.end());
+
 }
 
 inline double EM_Class::normal_pdf(double R_n,int k)
@@ -59,7 +62,121 @@ inline double EM_Class::normal_pdf_no_const(double R_n,int k)
 
     return temp;
 }
+/*
+double EM_Class::compute_new_return(double K)
+{
+  if(price_flag_)
+  {
+    //USE S vector
+    //figure out times and infer the new return
+    return K;
+  }
+  else
+  {
+    return K;
+  }
+}
+*/
 
+std::vector<double> EM_Class::update_return_singular(double K)
+{
+  int T = R.size();
+  full_returns.push_back(K);
+
+  parameters old_param=initial;
+  parameters new_param=initial;
+
+  //Need to change the returns set up, create R from underlying full returns vector
+
+  //parameters saved_param=initial;
+
+  //double new_return=K;//WORK OUT NEW RETURN
+
+  new_param= Expectation_Maximization_OneStep_OneData(K,new_param);
+
+  //IS THIS DATA INSIDE THE WINDOW
+ /* if(T< max_window_size_)
+  {
+    //old_param= Expectation_Maximization_OneStep_OneData(R.at(i),old_param);
+    initial.mu = (initial.mu*T +new_param.mu)/(T+1);
+    initial.nu = (initial.nu*T +new_param.nu)/(T+1);
+    initial.lambda = (initial.lambda*T+new_param.lambda)/(T+1);
+    initial.sigma_s = (initial.sigma_s*T +new_param.sigma_s)/(T+1);
+    initial.tau_s = (initial.tau_s*T +new_param.tau_s)/(T+1);
+  }
+  else
+  {
+    old_param= Expectation_Maximization_OneStep_OneData(R.at(0),old_param);
+    initial.mu = (initial.mu*T - old_param.mu+new_param.mu)/T;
+    initial.nu = (initial.nu*T - old_param.nu+new_param.nu)/T;
+    initial.lambda = (initial.lambda*T - old_param.lambda+new_param.lambda)/T;
+    initial.sigma_s = (initial.sigma_s*T - old_param.sigma_s+new_param.sigma_s)/T;
+    initial.tau_s = (initial.tau_s*T - old_param.tau_s+new_param.tau_s)/T;
+  }
+*/
+ //ADD NEW INFO TO DATA
+//  R.at(i)=K;
+
+
+
+  update_return_vec();
+
+  if(max_em_iterations_>0)
+  {
+    Expectation_Maximization();
+  }
+  return initial.get_params();
+}
+
+void EM_Class::update_return_vec()
+{
+  R.assign(full_returns.end() - std::min(full_returns.size(), max_window_size_ ), full_returns.end());
+}
+
+
+parameters EM_Class::Expectation_Maximization_OneStep_OneData(double R_n,parameters starting){
+
+  size_t T = R.size();
+ // size_t i =0;
+  //omp_set_num_threads(num_threads_);
+  parameters prev_params =initial;
+ // start_=starting;
+
+ //   ++i;
+    double beta_s = starting.tau_s/starting.sigma_s;
+    double aver =  starting.mu  - (starting.nu/beta_s);
+    prev_params=starting;
+    double nu_sum=0;
+    double mu_sum=0;
+    double lambda_sum=0;
+    double sigma_sum =0;
+    double tau_term=0;
+
+//#pragma omp parallel for reduction(+:mu_sum,nu_sum,lambda_sum,sigma_sum,tau_term)
+  //  size_t  n=0;
+      double a_n,b_n;
+      double lambda_n = generate_lambda_an_bn_2(a_n,b_n,R_n);
+      double temp = aver + a_n*(R_n - aver);
+      double temp2 = (1.0 -a_n)*(R_n - aver);
+      double c_n = beta_s*a_n*(1.0-a_n)- beta_s*b_n -((1.0-a_n)*(1.0-a_n))/lambda_n;
+
+      lambda_sum+=lambda_n;
+      mu_sum += temp;
+      nu_sum += temp2;
+      sigma_sum += starting.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver) + temp*temp;
+      tau_term += starting.tau_s*(lambda_n -1 + a_n) + c_n*(R_n -aver)*(R_n -aver) + temp2*temp2/lambda_n;
+
+
+    starting.lambda = lambda_sum/double(T);
+    starting.nu = nu_sum/lambda_sum;
+    starting.mu = mu_sum/double(T);
+    starting.sigma_s = (sigma_sum/double(T)) - starting.mu*starting.mu;
+    starting.tau_s = (tau_term/lambda_sum) -starting.nu*starting.nu;
+
+
+  return starting;
+  //FIX THIS, NEED TO RETURN CONVERGENCE INFO.
+}
 
 
 double EM_Class::average(){
@@ -522,7 +639,6 @@ EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
     distance_flag_=0;
     num_threads_=1;
     max_em_iterations_=500;
-    set_thread_num(num_threads_);
 
 }
 EM_Class::EM_Class()
@@ -535,7 +651,6 @@ EM_Class::EM_Class()
     num_threads_=1;
     max_em_iterations_=500;
     max_poisson_terms_=100;
-    set_thread_num(num_threads_);
 }
 
 void EM_Class::set_debug_level(int i)
@@ -624,22 +739,25 @@ vector<double> EM_Class::auto_EM(bool random)
    // srand (time(NULL));
 //    int n =R.size();
     double mean = average();
+    cout <<" the average is" << average() << endl;
     double bipower_sigma_s_est= bipower_sigma_s();
     double lambda_start;
     double tau_s_start =tau_estim(mean,bipower_sigma_s_est,lambda_start);
 
-    if(lambda_start<0)
-    {
+  //  if(lambda_start<0)
+  //  {
+  //      lambda_start =rand01()/10.0;
+  //  }
+  //  if(tau_s_start<0)
+  //  {
+      cout <<"Methods of moments fails" << endl;
+        tau_s_start = 2*(1.5 - rand01())*bipower_sigma_s_est;
         lambda_start =rand01()/10.0;
-    }
-    if(tau_s_start<0)
-    {
-        tau_s_start = (1.5 - rand01())*bipower_sigma_s_est;
-        lambda_start =rand01()/10.0;
-    }
+  //  }
  //   double zero =0;
     //Expectation_Maximization_2(nt, R,average,zero ,bipower_sigma_s,tau_s_start,lambda_start,core);
     double mu_start=mean;
+    cout <<"mu start is" << mu_start << endl;
     double nu_start=0.0;
     double sigma_s_start=bipower_sigma_s_est;
     if(random)
@@ -650,6 +768,7 @@ vector<double> EM_Class::auto_EM(bool random)
         lambda_start*=(1.5-rand01());
         tau_s_start*=(1.5-rand01());
     }
+    cout <<"mu start is" << mu_start << endl;
     //load(max_poisson_terms_,mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
     load_params(mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
     print_string("The starting conditions are ");
@@ -744,7 +863,12 @@ void EM_Class::set_thread_num(size_t n){
  // int a;
   }
 
-#if RCPP_FLAG==1
+void EM_Class::set_max_window_size(size_t max_window_size)
+{
+  max_window_size_=max_window_size;
+}
+
+
 std::vector<double> EM_Class::data_simulation(int n,std::vector<double> parameter_vector) {
 
     double mu =parameter_vector[0];
@@ -788,7 +912,6 @@ std::vector<double> EM_Class::data_simulation(int n,std::vector<double> paramete
     }
     return data;
   }
-#endif
 /*
  std::vector<double> DataSimulation_comp(int n,std::vector<double> parameter_vector) {
 
@@ -842,6 +965,8 @@ RCPP_MODULE(mod_EM_Class) {
   .method("expectedNumberOfJumps",&EM_Class::expected_num_of_jumps)
   .method("setThreadNumber",&EM_Class::set_thread_num)
   .method("dataSimulation",&EM_Class::data_simulation)
+  .method("addNewReturn",&EM_Class::update_return_singular)
+  .method("setMaxWindowSize",&EM_Class::set_max_window_size)
   //    .method( "Load_Dataset",&EM_Class::set_R)
   ;
 }

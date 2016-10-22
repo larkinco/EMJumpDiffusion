@@ -60,10 +60,13 @@ class EM_Class{
         //RETURN INFO ABOUT CONVERGENCE, NUMBER OF ITERATIONS, ERRORS
         void convergence_information();
         std::vector<double> data_simulation(int n,std::vector<double> parameter_vector);
+        std::vector<double> update_return_singular(double K);
+        void set_max_window_size(size_t max_window_size);
 
     protected:
     private:
         std::vector <double> R;
+        std::vector <double> full_returns;
         parameters initial;
         //SAVE STARTING CONDITIONS
         parameters start_;
@@ -71,7 +74,7 @@ class EM_Class{
         size_t max_poisson_terms_;
         int debug_level_;
         //size_t m;
-        size_t max_window_size;
+        size_t max_window_size_;
         double final_log_likelihood;
         size_t iterations_completed_;
         size_t max_em_iterations_;
@@ -93,6 +96,7 @@ class EM_Class{
         double generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n);
         double generate_lambda_an_bn_2_vec(double &a_n,double &b_n,const double R_n);
         //double normal_pdf(double R_n,int k);
+        parameters Expectation_Maximization_OneStep_OneData(double R_n,parameters starting);
         inline double normal_pdf(double R_n,int k);
         inline double normal_pdf_no_const(double R_n,int k);
         inline double rand01();
@@ -101,7 +105,9 @@ class EM_Class{
         inline void print_double(double x);
         inline void seed_random();
         inline void print_string(string x);
+        void update_return_vec();
         size_t num_threads_;
+        bool price_flag_;
 };
 
 #endif // EM_CLASS_H
