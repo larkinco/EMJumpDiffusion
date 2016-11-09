@@ -3,7 +3,7 @@
 #include <iostream>
 #include"EM_Class.h"
 #include<cmath>
-#include<chrono>
+//#include<chrono>
 #include<time.h>
 
 
@@ -78,54 +78,57 @@ double EM_Class::compute_new_return(double K)
 }
 */
 
+
 std::vector<double> EM_Class::update_return_singular(double K)
 {
-  int T = R.size();
+ // int T = R.size();
   full_returns.push_back(K);
-
-  parameters old_param=initial;
-  parameters new_param=initial;
-
-  //Need to change the returns set up, create R from underlying full returns vector
-
-  //parameters saved_param=initial;
-
-  //double new_return=K;//WORK OUT NEW RETURN
-
-  new_param= Expectation_Maximization_OneStep_OneData(K,new_param);
-
-  //IS THIS DATA INSIDE THE WINDOW
- /* if(T< max_window_size_)
-  {
-    //old_param= Expectation_Maximization_OneStep_OneData(R.at(i),old_param);
-    initial.mu = (initial.mu*T +new_param.mu)/(T+1);
-    initial.nu = (initial.nu*T +new_param.nu)/(T+1);
-    initial.lambda = (initial.lambda*T+new_param.lambda)/(T+1);
-    initial.sigma_s = (initial.sigma_s*T +new_param.sigma_s)/(T+1);
-    initial.tau_s = (initial.tau_s*T +new_param.tau_s)/(T+1);
-  }
-  else
-  {
-    old_param= Expectation_Maximization_OneStep_OneData(R.at(0),old_param);
-    initial.mu = (initial.mu*T - old_param.mu+new_param.mu)/T;
-    initial.nu = (initial.nu*T - old_param.nu+new_param.nu)/T;
-    initial.lambda = (initial.lambda*T - old_param.lambda+new_param.lambda)/T;
-    initial.sigma_s = (initial.sigma_s*T - old_param.sigma_s+new_param.sigma_s)/T;
-    initial.tau_s = (initial.tau_s*T - old_param.tau_s+new_param.tau_s)/T;
-  }
-*/
- //ADD NEW INFO TO DATA
-//  R.at(i)=K;
-
-
-
   update_return_vec();
 
   if(max_em_iterations_>0)
   {
-    Expectation_Maximization();
+    vector<double> temp =Expectation_Maximization_modLikelihood();
   }
+  cout << iterations_completed_ << endl;
   return initial.get_params();
+}
+
+double EM_Class::eval_inferred_return(double timestep_fraction)
+{
+  return initial.mu*timestep_fraction +initial.lambda*timestep_fraction*initial.nu;
+}
+
+std::vector<double> EM_Class::add_partial_return(double K,double fraction_of_timestep)
+{
+  double inferred_return = K + eval_inferred_return(1.0-fraction_of_timestep);
+  partial_return_=K;
+  if(prev_partial_return_==false)
+  {
+    R.push_back(inferred_return);
+  }
+  else
+  {
+    R.back()= inferred_return;
+  }
+
+  prev_partial_return_=true;
+//  full_returns.push_back(K);
+ // update_return_vec();
+
+  if(max_em_iterations_>0)
+  {
+    vector<double> temp=Expectation_Maximization_modLikelihood();
+  }
+//  cout << iterations_completed_ << endl;
+  return initial.get_params();
+}
+void EM_Class::close_current_return()
+{
+  full_returns.push_back(partial_return_);
+  partial_return_=0;
+  prev_partial_return_=false;
+  update_return_vec();
+
 }
 
 void EM_Class::update_return_vec()
@@ -361,6 +364,40 @@ double EM_Class::generate_lambda_an_bn(double &a_n,double &b_n,double R_n)
     return(sum_l_nom/sum_denom);
 }
 
+double EM_Class::generate_lambda_an_bn_likelihood(double &a_n,double &b_n,double R_n,double &local_likelihood)
+{
+    double beta_s = (initial.tau_s)/(initial.sigma_s);
+    double product =1;
+    //  double temp = normal_pdf_fewer(R_n-mu,sigma_s);
+    double temp = normal_pdf(R_n,0);
+
+    double sum_l_nom = 0;
+    double sum_a_nom = temp;
+    double sum_c_nom = temp;
+    double sum_denom = temp;
+    double prev_sum_l_nom=1;
+
+    size_t k =1;
+    while(prev_sum_l_nom!=sum_l_nom && k<max_poisson_terms_)
+    {
+        prev_sum_l_nom = sum_l_nom;
+        product *= initial.lambda/k;
+        //temp =gsl_ran_gaussian_pdf (R_n-initial.mu - k*initial.nu,sqrt(initial.sigma_s + k*initial.tau_s))*product;
+        temp =normal_pdf(R_n,k)*product;
+        double g_N = (1.0/(1.0+k*beta_s));
+        sum_l_nom+= k*temp;
+        sum_a_nom+= g_N*temp;
+        sum_c_nom+= g_N*g_N*temp;
+        sum_denom+= temp;
+        ++k;
+    }
+    local_likelihood = std::log(std::exp(-initial.lambda)*sum_denom);
+    //  std::cout << k << std::endl;
+    a_n = sum_a_nom/sum_denom;
+    b_n = (sum_c_nom/sum_denom) - a_n*a_n;
+    return(sum_l_nom/sum_denom);
+}
+
 
 double EM_Class::generate_lambda_an_bn_2(double &a_n,double &b_n,double R_n)
 {
@@ -485,6 +522,110 @@ double EM_Class::generate_lambda_an_bn_2_vec(double &a_n,double &b_n,const doubl
    return exp( -1 * (x - initial.mu-k*initial.nu) * (x -  initial.mu-k*initial.nu) / (2 *(sigma_s +k*tau_s))) / (sqrt((sigma_s +k*tau_s)*2 * 3.14159265));
    }
    */
+
+void EM_Class::vector_cleanup(){
+
+  mu_seq.clear();
+  nu_seq.clear();
+  sigma_s_seq.clear();
+  tau_s_seq.clear();
+  lambda_seq.clear();
+  llikelihood_sequence.clear();
+  rel_llikelihood_sequence.clear();
+  param_dist_sequence.clear();
+  rel_param_dist_sequence.clear();
+
+}
+
+std::vector<double> EM_Class::Expectation_Maximization_modLikelihood(){
+
+    size_t T = R.size();
+    size_t i =0;
+
+    vector_cleanup();
+    //omp_set_num_threads(num_threads_);
+    parameters prev_params =initial;
+    start_=initial;
+    double prev_likelihood=0;
+    double likelihood=0;
+    do
+    {
+        prev_likelihood=likelihood;
+        ++i;
+        double beta_s = initial.tau_s/initial.sigma_s;
+        double aver =  initial.mu  - (initial.nu/beta_s);
+        prev_params=initial;
+        double nu_sum=0;
+        double mu_sum=0;
+        double lambda_sum=0;
+        double sigma_sum =0;
+        double tau_term=0;
+        likelihood=0;
+
+#pragma omp parallel for reduction(+:mu_sum,nu_sum,lambda_sum,sigma_sum,tau_term,likelihood)
+        for(size_t n =0;n<T;++n)
+        {
+            double a_n,b_n;
+            double R_n =R.at(n);
+            double local_likelihood;
+            double lambda_n = generate_lambda_an_bn_likelihood(a_n,b_n,R_n,local_likelihood);
+            double temp = aver + a_n*(R_n - aver);
+            double temp2 = (1.0 -a_n)*(R_n - aver);
+            double c_n = beta_s*a_n*(1.0-a_n)- beta_s*b_n -((1.0-a_n)*(1.0-a_n))/lambda_n;
+            lambda_sum+=lambda_n;
+            mu_sum += temp;
+            nu_sum += temp2;
+            sigma_sum += initial.sigma_s*(1.0-a_n) + b_n*(R_n - aver)*(R_n - aver) + temp*temp;
+            tau_term += initial.tau_s*(lambda_n -1 + a_n) + c_n*(R_n -aver)*(R_n -aver) + temp2*temp2/lambda_n;
+            likelihood+=local_likelihood;
+
+        }
+        initial.lambda = lambda_sum/double(T);
+        initial.nu = nu_sum/lambda_sum;
+        initial.mu = mu_sum/double(T);
+        initial.sigma_s = (sigma_sum/double(T)) - initial.mu*initial.mu;
+        initial.tau_s = (tau_term/lambda_sum) -initial.nu*initial.nu;
+
+        //////////////DEBUG CODE//////////////////////////////////////
+  /*      mu_seq.push_back(initial.mu- prev_params.mu );
+        nu_seq.push_back(initial.nu- prev_params.nu);
+        sigma_s_seq.push_back(initial.sigma_s- prev_params.sigma_s );
+        tau_s_seq.push_back(initial.tau_s- prev_params.tau_s );
+        lambda_seq.push_back(initial.lambda - prev_params.lambda ); */
+
+        mu_seq.push_back(initial.mu);
+        nu_seq.push_back(initial.nu);
+        sigma_s_seq.push_back(initial.sigma_s );
+        tau_s_seq.push_back(initial.tau_s );
+        lambda_seq.push_back(initial.lambda  );
+       //////////////DEBUG CODE//////////////////////////////////////
+
+      //  cout << "likelihood is" <<std::setprecision(15) << likelihood << " " << prev_likelihood<< endl;
+
+        if(debug_level_>0){
+          //  double likelihood = incomp_log_likelihood();
+           // std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s << " "<< initial.lambda<<" "<<likelihood << endl;
+            print_params();
+           // double likelihood2=incomp_log_likelihood();
+            //cout << likelihood << " " << likelihood2 << " " << likelihood- likelihood2 << endl;
+        }
+        if(debug_level_>2){
+            print_likelihood();
+        }
+    }while(!convergence_test_likelihood(i,prev_params,likelihood,prev_likelihood));
+    //double likelihood = incomp_log_likelihood();
+
+    if(debug_level_>-1){
+    //    std::cout << initial.mu << " " << initial.nu << " " <<  initial.sigma_s << " " << initial.tau_s<< " "<< initial.lambda<< " " << endl;
+        print_params();
+       // double likelihood = incomp_log_likelihood();
+    }   //NEED BETTER CONVERGENCE CRITERIONS
+
+    return initial.get_params();
+    //FIX THIS, NEED TO RETURN CONVERGENCE INFO.
+}
+
+
 std::vector<double> EM_Class::Expectation_Maximization(){
 
     size_t T = R.size();
@@ -548,15 +689,20 @@ std::vector<double> EM_Class::Expectation_Maximization(){
     return initial.get_params();
     //FIX THIS, NEED TO RETURN CONVERGENCE INFO.
 }
-
 bool EM_Class::convergence_test(size_t i,parameters prev_params)
 {
     double distance_sqr = eucl_dist_sqr(prev_params,initial);
     double rel_distance_sqr = rel_eucl_dist_sqr(prev_params,initial);
+
+ //   double likelihood_distance=sqrt((likelihood-prev_likelihood)*(likelihood-prev_likelihood));
+
+   // double likelihood_rel_distance=likelihood_distance/fabs(likelihood);
+
     if(debug_level_>1)
     {
      #if RCPP_FLAG==1
         Rcpp::Rcout << "Stopping Check, iteration number = "<< i << " ,distance_sqr = " << distance_sqr <<" ,rel_distance_sqr = " << rel_distance_sqr << endl;
+        //Rcpp::Rcout << "Stopping Check, iteration number = "<< i << " ,likelihood_distance = " << likelihood_distance <<" ,likelihood_rel_distance= " << likelihood_rel_distance << endl;
      #else
         cout << "Stopping Check, iteration number = "<< i << " ,distance_sqr = " << distance_sqr <<" ,rel_distance_sqr = " << rel_distance_sqr << endl;
      #endif
@@ -575,6 +721,67 @@ bool EM_Class::convergence_test(size_t i,parameters prev_params)
         return false;
     }
 }
+
+
+bool EM_Class::convergence_test_likelihood(size_t i,parameters prev_params,double likelihood,double prev_likelihood)
+{
+    double distance_sqr = eucl_dist_sqr(prev_params,initial);
+    double rel_distance_sqr = rel_eucl_dist_sqr(prev_params,initial);
+
+    double llikelihood_dist=sqrt((likelihood-prev_likelihood)*(likelihood-prev_likelihood));
+    double llikelihood_rel_dist=llikelihood_dist/fabs(likelihood);
+
+    //////////////DEBUG CODE//////////////////////////////////////
+
+    llikelihood_sequence.push_back(llikelihood_dist);
+    rel_llikelihood_sequence.push_back(llikelihood_rel_dist);
+    param_dist_sequence.push_back(distance_sqr);
+    rel_param_dist_sequence.push_back(rel_distance_sqr);
+
+    //////////////////////////////////////////////////////////////
+
+    if(debug_level_>1)
+    {
+     #if RCPP_FLAG==1
+    //    Rcpp::Rcout << "Stopping Check, iteration number = "<< i << " ,distance_sqr = " << distance_sqr <<" ,rel_distance_sqr = " << rel_distance_sqr << endl;
+        Rcpp::Rcout << "Stopping Check, iteration number = "<< i << " ,likelihood_distance = " << llikelihood_dist <<" ,likelihood_rel_distance= " << llikelihood_rel_dist << " ,distance_sqr = " << distance_sqr <<" ,rel_distance_sqr = " << rel_distance_sqr << endl;
+     #else
+        cout << "Stopping Check, iteration number = "<< i << " ,distance_sqr = " << distance_sqr <<" ,rel_distance_sqr = " << rel_distance_sqr << endl;
+     #endif
+    }
+    //if(i<max_em_iterations_&&max_iteration_stopping_)
+    bool dist_converg=distance_convergence(distance_sqr,rel_distance_sqr);
+    bool likelihood_converg = likelihood_convergence(llikelihood_dist,llikelihood_rel_dist,i);
+    if((i>=max_em_iterations_)||dist_converg||likelihood_converg)
+    {
+        final_rel_distance_s_=rel_distance_sqr;
+        final_distance_s_=distance_sqr;
+        final_llikelihood_dist_=llikelihood_dist;
+        final_llikelihood_rel_dist_=llikelihood_rel_dist;
+        final_llikelihood_=incomp_log_likelihood();
+        iterations_completed_=i;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+bool EM_Class::likelihood_convergence(double llikelihood_dist,double rel_llikelihood_dist,size_t i)
+{
+  bool rel_l=false;
+  bool l=false;
+  if(rel_llikelihood_flag_&&(rel_llikelihood_dist<rel_llikelihood_dist_tol_)&&(i>0))
+  {
+    rel_l=true;
+  }
+  if(llikelihood_flag_&&(llikelihood_dist<llikelihood_dist_tol_)&&(i>0))
+  {
+    l=true;
+  }
+  return (rel_l||l);
+}
+
 
 bool EM_Class::distance_convergence(double distance_sqr,double rel_distance_sqr)
 {
@@ -623,7 +830,7 @@ double EM_Class::rel_eucl_dist_sqr(parameters prev_params, parameters current_pa
     distance += x*x;
     return distance;
 }
-
+/*
 EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
 {
     max_poisson_terms_=a;
@@ -637,20 +844,36 @@ EM_Class::EM_Class(size_t a,double mu1,double nu1,double l,double t,double s)
     distance_s_tol_=1e-10;
     rel_distance_flag_=1;
     distance_flag_=0;
+
+    rel_llikelihood_flag_=0;
+    llikelihood_flag_=0;
+
+    rel_llikelihood_dist_tol_=1e-17;
+    llikelihood_dist_tol_=1e-17;
+
     num_threads_=1;
     max_em_iterations_=500;
 
 }
+*/
 EM_Class::EM_Class()
 {
     debug_level_=-1;
-    rel_distance_s_tol_=1e-15;
+    rel_distance_s_tol_=1e-25;
     distance_s_tol_=1e-10;
     rel_distance_flag_=1;
     distance_flag_=0;
+
+    rel_llikelihood_flag_=0;
+    llikelihood_flag_=0;
+    rel_llikelihood_dist_tol_=1e-17;
+    llikelihood_dist_tol_=1e-17;
+
     num_threads_=1;
     max_em_iterations_=500;
     max_poisson_terms_=100;
+    partial_return_=0;
+    prev_partial_return_=false;
 }
 
 void EM_Class::set_debug_level(int i)
@@ -727,37 +950,39 @@ vector<double> EM_Class::expected_num_of_jumps()
    outputstream.close();
    }
    */
-
+/*
 chrono::high_resolution_clock::time_point EM_Class::start_timing(){
     return chrono::high_resolution_clock::now();
 }
+*/
 
-
-vector<double> EM_Class::auto_EM(bool random)
+//vector<double> EM_Class::auto_EM(bool random)
+Rcpp::List EM_Class::auto_EM(bool random)
 {
+//    cout << rel_distance_s_tol_ << " " << distance_s_tol_ << endl;
     seed_random();
    // srand (time(NULL));
 //    int n =R.size();
     double mean = average();
-    cout <<" the average is" << average() << endl;
+//    cout <<" the average is" << average() << endl;
     double bipower_sigma_s_est= bipower_sigma_s();
     double lambda_start;
     double tau_s_start =tau_estim(mean,bipower_sigma_s_est,lambda_start);
 
-  //  if(lambda_start<0)
-  //  {
-  //      lambda_start =rand01()/10.0;
-  //  }
-  //  if(tau_s_start<0)
-  //  {
-      cout <<"Methods of moments fails" << endl;
+    if(lambda_start<0)
+    {
+        lambda_start =rand01()/10.0;
+    }
+    if(tau_s_start<0)
+    {
+     // cout <<"Methods of moments fails" << endl;
         tau_s_start = 2*(1.5 - rand01())*bipower_sigma_s_est;
         lambda_start =rand01()/10.0;
-  //  }
+    }
  //   double zero =0;
     //Expectation_Maximization_2(nt, R,average,zero ,bipower_sigma_s,tau_s_start,lambda_start,core);
     double mu_start=mean;
-    cout <<"mu start is" << mu_start << endl;
+    //cout <<"mu start is" << mu_start << endl;
     double nu_start=0.0;
     double sigma_s_start=bipower_sigma_s_est;
     if(random)
@@ -768,14 +993,43 @@ vector<double> EM_Class::auto_EM(bool random)
         lambda_start*=(1.5-rand01());
         tau_s_start*=(1.5-rand01());
     }
-    cout <<"mu start is" << mu_start << endl;
+//    cout <<"mu start is" << mu_start << endl;
     //load(max_poisson_terms_,mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
     load_params(mu_start,nu_start,sigma_s_start,tau_s_start,lambda_start);
     print_string("The starting conditions are ");
     print_params();
-    Expectation_Maximization();
+    //Expectation_Maximization();
+    vector<double> temp= Expectation_Maximization_modLikelihood();
 
-    return initial.get_params();
+    print_convergence_info();
+
+    Rcpp::List x= Rcpp::List::create(Rcpp::Named("Params") = initial.get_params(),
+                       Rcpp::Named("NumIterations") = iterations_completed_,
+                       Rcpp::Named("LogLikelihood") = final_llikelihood_,
+                       Rcpp::Named("ParamDist") = sqrt(final_distance_s_),
+                       Rcpp::Named("RelParamDist") = sqrt(final_rel_distance_s_),
+                       Rcpp::Named("LogLikelihoodDist") = final_llikelihood_dist_,
+                       Rcpp::Named("RelLogLikelihoodDist") = final_llikelihood_rel_dist_);
+    x.attr("class")="EMResults";
+    return x;
+
+/*
+    return Rcpp::List::create(Rcpp::Named("Params") = initial.get_params(),
+                              Rcpp::Named("NumIterations") = iterations_completed_,
+                              Rcpp::Named("LogLikelihood") = final_llikelihood_,
+                              Rcpp::Named("ParamDist") = sqrt(final_distance_s_),
+                              Rcpp::Named("RelParamDist") = sqrt(final_rel_distance_s_),
+                              Rcpp::Named("LogLikelihoodDist") = final_llikelihood_dist_,
+                              Rcpp::Named("RelLogLikelihoodDist") = final_llikelihood_rel_dist_);
+  */  /*
+    Rcpp::Rcout<< "Number of Iterations was " << iterations_completed_ << endl;
+    Rcpp::Rcout<< "Final Log-Likelihood is " << final_llikelihood_ << endl;
+    Rcpp::Rcout<< "Final distance is " << final_distance_s_ << endl;
+    Rcpp::Rcout<< "Final relative distance is " << final_rel_distance_s_ << endl;
+    Rcpp::Rcout<< "Final Log-Likelihood distance is " << final_llikelihood_dist_ << endl;
+    Rcpp::Rcout<< "Final relative Log-Likelihood distance is " << final_llikelihood_rel_dist_  << endl;
+ //   return initial.get_params();
+     */
 }
 
 #if RCPP_FLAG==1
@@ -804,11 +1058,13 @@ inline void EM_Class::print_likelihood(){
 inline void EM_Class::print_double(double x){
   Rcpp::Rcout <<x << endl;
 }
+/*
 void EM_Class::end_timing(chrono::high_resolution_clock::time_point t1){
   chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
   double duration = chrono::duration_cast<chrono::microseconds>( t2 - t1 ).count();
   Rcpp::Rcout << "The time to convergence was " << duration << endl;
 }
+ */
 inline void EM_Class::seed_random()
 {
   //srand (time(NULL));
@@ -851,6 +1107,19 @@ inline void EM_Class::seed_random()
 
 
 
+
+void EM_Class::print_convergence_info()
+{
+  Rcpp::Rcout<< "Number of Iterations was " << iterations_completed_ << endl;
+  Rcpp::Rcout<< "Final Log-Likelihood is " << final_llikelihood_ << endl;
+  Rcpp::Rcout<< "Final distance is " << final_distance_s_ << endl;
+  Rcpp::Rcout<< "Final relative distance is " << final_rel_distance_s_ << endl;
+  Rcpp::Rcout<< "Final Log-Likelihood distance is " << final_llikelihood_dist_ << endl;
+  Rcpp::Rcout<< "Final relative Log-Likelihood distance is " << final_llikelihood_rel_dist_  << endl;
+
+}
+
+
 void EM_Class::set_max_iterations(size_t max_em_iterations)
 {
     max_em_iterations_=max_em_iterations;
@@ -867,6 +1136,81 @@ void EM_Class::set_max_window_size(size_t max_window_size)
 {
   max_window_size_=max_window_size;
 }
+
+/*
+double EM_Class::prob_stock_price(double current_stock_price,double bound,int T)
+{
+ // size_t k =1;
+  double product=1;
+  double exp_factor=exp(-initial.lambda*T);
+  double prob=0;
+  cout << prob << endl;
+  double a=0;
+//  double prev_prob;
+  //do
+//  {
+  //  prev_prob = prob2;
+  for(size_t k=0;k< max_poisson_terms_;++k)
+  {
+    double x_num= (log(bound) - log(current_stock_price))-(initial.mu*T+k*(initial.nu +0.5*initial.tau_s));
+    double x_denom = sqrt((initial.sigma_s*T +k*initial.tau_s));
+    double x = x_num/x_denom;
+
+    product *=(initial.lambda*T/double(k));
+    double cdf2 = R::pnorm(x,0,1,1,0);
+    //double cdf = R::pnorm(log(bound),log(current_stock_price)+(initial.mu+k*initial.nu)*T,sqrt((initial.sigma_s +k*initial.tau_s)*T),1,0);
+
+  //  cout << "cdf is " << cdf << endl;
+    double temp = exp_factor*product*cdf2;
+    prob += temp;
+    a+=exp_factor*product*cdf2;
+    cout << " temp is " << cdf2 << " and prob is " << prob << endl;
+ //   ++k;
+  //  cout << k << endl;
+  } //while(k<max_poisson_terms_)	;
+//  } while(prev_prob!=prob && k<max_poisson_terms_)	;
+  cout << prob << endl;
+  cout << a << endl;
+  return prob;
+}
+
+*/
+
+double EM_Class::prob_stock_price(double current_stock_price,double bound,int T)
+{
+  double product=1;
+  double exp_factor=exp(-initial.lambda);
+  double prob=0;
+  cout << prob << endl;
+ // double a=0;
+
+  size_t R_size=R.size();
+
+  for(size_t k=0;k< max_poisson_terms_*R_size;++k)
+  {
+    double x_num= (log(bound) - log(current_stock_price))-(initial.mu*T+k*(initial.nu +0.5*initial.tau_s));
+    double x_denom = sqrt((initial.sigma_s*T +k*initial.tau_s));
+    double x = x_num/x_denom;
+
+    double cdf2 = R::pnorm(x,0,1,1,0);
+    //double cdf = R::pnorm(log(bound),log(current_stock_price)+(initial.mu+k*initial.nu)*T,sqrt((initial.sigma_s +k*initial.tau_s)*T),1,0);
+    double temp2 = pow(exp_factor*product,T)*cdf2;
+   // cout << "cdf is " << cdf2 << "exp factor is " << exp_factor << " product is "<< product << endl;
+    prob += temp2;
+  //  a+=exp_factor*product*cdf2;
+
+    product *=(pow(initial.lambda*T,1.0/T)/pow(k+1.0,1.0/T));
+
+   // cout << " temp is " << cdf2 << " and prob is " << prob << endl;
+  }
+ // cout << prob << endl;
+//  cout << a << endl;
+  return prob;
+
+}
+
+
+
 
 
 std::vector<double> EM_Class::data_simulation(int n,std::vector<double> parameter_vector) {
@@ -955,7 +1299,7 @@ return data;
 RCPP_MODULE(mod_EM_Class) {
   Rcpp::class_<EM_Class>("EM_Class")
   .constructor()
-  .constructor<int,double,double,double,double,double>()
+//  .constructor<int,double,double,double,double,double>()
   .method( "ExpectationMaximatization", &EM_Class::Expectation_Maximization )
   .method( "loadDataset",&EM_Class::set_R)
   .method( "autoEM",&EM_Class::auto_EM)
@@ -967,6 +1311,22 @@ RCPP_MODULE(mod_EM_Class) {
   .method("dataSimulation",&EM_Class::data_simulation)
   .method("addNewReturn",&EM_Class::update_return_singular)
   .method("setMaxWindowSize",&EM_Class::set_max_window_size)
+  .method("probStockPriceBound",&EM_Class::prob_stock_price)
+  .method("addPartialReturn",&EM_Class::add_partial_return)
+  .method("closeCurrentReturn",&EM_Class::close_current_return)
+
+
+////////////  DEBUG CODE ////////////////////////
+  .field("llikelihood_sequence",&EM_Class::llikelihood_sequence)
+  .field("rel_llikelihood_sequence",&EM_Class::rel_llikelihood_sequence)
+  .field("param_dist_sequence",&EM_Class::param_dist_sequence)
+  .field("rel_param_dist_sequence",&EM_Class::param_dist_sequence)
+  .field("mu_seq",&EM_Class::mu_seq)
+  .field("nu_seq",&EM_Class::nu_seq)
+  .field("sigma_s_seq",&EM_Class::sigma_s_seq)
+  .field("tau_s_seq",&EM_Class::tau_s_seq)
+  .field("lambda_seq",&EM_Class::lambda_seq)
+
   //    .method( "Load_Dataset",&EM_Class::set_R)
   ;
 }
